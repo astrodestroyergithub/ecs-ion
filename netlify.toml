@@ -1,0 +1,17 @@
+# Netlify Deployment Configuration for ECS iON (Elite Consultancy Services iON)
+[build]
+  publish = "."
+  command = "echo 'ECS iON static CBT bundle ready for Netlify deployment'"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cache-Control = "public, max-age=3600"

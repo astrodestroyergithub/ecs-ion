@@ -1,0 +1,209 @@
+/* ============================================================================
+   ECS iON (Elite Consultancy Services iON) - Responsive CBT Stylesheet
+   ============================================================================ */
+
+:root {
+  --ecs-navy: #0c2340;
+  --ecs-blue: #1d4ed8;
+  --ecs-sky: #3b82f6;
+  --ecs-teal: #0d9488;
+  --ecs-panel-bg: #eef5fc;
+  --ecs-question-font-size: 1rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars for Exam Panes */
+.ecs-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+.ecs-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+.ecs-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+.ecs-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ============================================================================
+   TCS iON Authentic 5-State Question Palette Badges
+   ============================================================================ */
+.tcs-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 34px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tcs-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.18);
+}
+
+.tcs-badge.active-question {
+  outline: 2.5px solid #0284c7;
+  outline-offset: 2px;
+}
+
+/* 1. Not Visited - Light Grey Rounded Box with 3D bevel border */
+.tcs-badge.state-not-visited {
+  background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+  color: #1f2937;
+  border: 1px solid #9ca3af;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.06);
+}
+
+/* 2. Not Answered - Iconic TCS iON Red Angled Shield */
+.tcs-badge.state-not-answered {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+  color: #ffffff;
+  border: 1px solid #991b1b;
+  border-radius: 3px 3px 12px 12px;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 72%, 50% 100%, 0% 72%);
+  padding-bottom: 4px;
+}
+
+/* 3. Answered - Iconic TCS iON Green Angled Top Shield */
+.tcs-badge.state-answered {
+  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff;
+  border: 1px solid #166534;
+  border-radius: 12px 12px 3px 3px;
+  clip-path: polygon(50% 0%, 100% 28%, 100% 100%, 0% 100%, 0% 28%);
+  padding-top: 4px;
+}
+
+/* 4. Marked for Review (Not Answered) - Purple Circle */
+.tcs-badge.state-review {
+  background: linear-gradient(180deg, #9333ea 0%, #6b21a8 100%);
+  color: #ffffff;
+  border: 1px solid #581c87;
+  border-radius: 9999px;
+  width: 36px;
+  height: 36px;
+}
+
+/* 5. Answered & Marked for Review (Considered for Evaluation) - Purple Circle + Green Check Dot */
+.tcs-badge.state-ans-review {
+  background: linear-gradient(180deg, #9333ea 0%, #581c87 100%);
+  color: #ffffff;
+  border: 1px solid #4c1d95;
+  border-radius: 9999px;
+  width: 36px;
+  height: 36px;
+}
+
+.tcs-badge.state-ans-review::after {
+  content: "✓";
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 15px;
+  height: 15px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 900;
+  border-radius: 9999px;
+  border: 1.5px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Dynamic Question Font Scaling */
+.question-content-area {
+  font-size: var(--ecs-question-font-size, 1rem);
+  line-height: 1.65;
+}
+
+/* Watermark pattern inside question canvas (authentic TCS iON candidate roll watermark) */
+.cbt-watermark-bg {
+  position: relative;
+}
+
+/* Option Card Hover & Selection states */
+.cbt-option-row {
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cbt-option-row:hover {
+  background-color: #f0f7ff;
+  border-color: #93c5fd;
+}
+.cbt-option-row.selected-option {
+  background-color: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+/* High Contrast / Dark Exam Mode Support */
+body.ecs-dark-mode {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+body.ecs-dark-mode .ecs-surface {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+body.ecs-dark-mode .ecs-subsurface {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+body.ecs-dark-mode .cbt-option-row {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+body.ecs-dark-mode .cbt-option-row:hover {
+  background-color: #334155;
+}
+body.ecs-dark-mode .cbt-option-row.selected-option {
+  background-color: #1e3a8a;
+  border-color: #60a5fa;
+}
+
+/* Calculator button press effect */
+.calc-btn:active {
+  transform: scale(0.96);
+}
+
+/* Print Scorecard Styling */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff;
+  }
+}
