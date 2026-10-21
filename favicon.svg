@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <!-- Deep ECS Navy to Royal Blue Background Gradient -->
+    <linearGradient id="ecsBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0c2340" />
+      <stop offset="55%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+
+    <!-- Cyan-Sky iON Orbital Ring Gradient -->
+    <linearGradient id="ionRing" x1="8" y1="52" x2="56" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25" />
+      <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="1" />
+    </linearGradient>
+
+    <!-- Iconic TCS/ECS iON Answered Green Shield Gradient -->
+    <linearGradient id="cbtGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Squircle Terminal Tile -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#ecsBg)" stroke="#38bdf8" stroke-width="1.75" stroke-opacity="0.55" />
+
+  <!-- Subtle Inner Terminal Screen Frame -->
+  <rect x="6" y="6" width="52" height="52" rx="10" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1" />
+
+  <!-- Dynamic iON Orbital Arc -->
+  <ellipse cx="32" cy="32" rx="24" ry="10.5" transform="rotate(-28 32 32)" stroke="url(#ionRing)" stroke-width="2.4" stroke-linecap="round" />
+
+  <!-- Glowing Amber iON Electron Node (Top Right) -->
+  <circle cx="51.5" cy="19.5" r="3.6" fill="#fbbf24" stroke="#0c2340" stroke-width="1.2" />
+
+  <!-- Central Bold "ECS" Monogram Pillar -->
+  <text
+    x="29"
+    y="35"
+    text-anchor="middle"
+    fill="#ffffff"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    font-size="18.5"
+    font-weight="900"
+    letter-spacing="-0.6"
+  >ECS</text>
+
+  <!-- Bottom "iON" Pill Sub-Badge -->
+  <rect x="11" y="41" width="25" height="11" rx="3.5" fill="#0284c7" />
+  <text
+    x="23.5"
+    y="49.2"
+    text-anchor="middle"
+    fill="#ffffff"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    font-size="8.5"
+    font-weight="800"
+    letter-spacing="0.4"
+  >iON</text>
+
+  <!-- Iconic TCS/ECS iON Green "Answered" Pentagon Badge with Checkmark (Bottom Right) -->
+  <path
+    d="M48 37 L56 41.5 L56 53.5 C56 54.3 55.3 55 54.5 55 L41.5 55 C40.7 55 40 54.3 40 53.5 L40 41.5 Z"
+    fill="url(#cbtGreen)"
+    stroke="#ffffff"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M44.5 47.2 L47.2 49.8 L52 44.5"
+    stroke="#ffffff"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
