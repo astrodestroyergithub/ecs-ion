@@ -1,5 +1,7 @@
 // ============================================================================
 // ECS iON (Elite Consultancy Services iON) - Core Application Engine
+// Supports 25 Official Exam Formats (80–200 Qs per sitting), Variable Marking
+// with 1/4th Negative, Graduate vs Under-Graduate Difficulty, & MAT 200–800 Scale
 // ============================================================================
 
 (function () {
@@ -29,6 +31,8 @@
     mode: "terminal", // 'terminal' | 'instructions' | 'loading_api' | 'exam' | 'submit_confirm' | 'feedback' | 'result' | 'admin'
     instructionsPage: 1, // 1 = General TCS iON Instructions, 2 = Paper Format & Declaration
     activeExamId: Storage.get("ecs_active_exam_id", "SBI_PO"),
+    sectorFilter: "ALL", // Filter across the 25 exams in Admin & Terminal
+    optionalLanguageChoice: "english", // 'english' | 'hindi_lang' for RRB/IBPS Mains Section 4
     customExams: Storage.get("ecs_custom_exams", {}),
     candidates: Storage.get("ecs_candidates", window.ECS_DEFAULT_CANDIDATES),
     attempts: Storage.get("ecs_attempts", [
@@ -37,18 +41,18 @@
         rollNo: "2409100482",
         candidateName: "Priya Nair",
         examId: "SBI_PO",
-        examTitle: "SBI Probationary Officers (PO) Preliminary Examination",
+        examTitle: "SBI PO (Preliminary) Examination",
         timestamp: "2026-10-20 18:40",
-        score: 17.50,
-        maxScore: 24.0,
-        accuracy: 85.7,
-        answeredCount: 21,
-        correctCount: 18,
-        wrongCount: 2,
-        unansweredCount: 3,
-        timeTakenSeconds: 2610,
+        score: 68.50,
+        maxScore: 100.0,
+        accuracy: 86.2,
+        answeredCount: 78,
+        correctCount: 71,
+        wrongCount: 10,
+        unansweredCount: 19,
+        timeTakenSeconds: 3410,
         feedbackRating: 4.8,
-        feedbackComment: "Smooth ECS iON interface, zero lag while switching between DI questions."
+        feedbackComment: "Smooth ECS iON interface, all 100 questions loaded in one batch with zero lag."
       }
     ]),
 
@@ -56,7 +60,7 @@
     selectedCandidateRoll: "2409100481",
     loginRollInput: "2409100481",
     loginPasswordInput: "1999-08-15",
-    waitingSecondsLeft: 12,
+    waitingSecondsLeft: 10,
     waitingTimerInterval: null,
     virtualKeyboardOpen: false,
     activeKeyboardField: "loginRollInput",
@@ -103,7 +107,7 @@
     adminTab: "presets" // 'presets' | 'builder' | 'api_lab' | 'candidates' | 'analytics'
   };
 
-  // Helper to get all available exams (built-in presets + admin custom exams)
+  // Helper to get all available exams (25 built-in presets + admin custom exams)
   function getAllExams() {
     return Object.assign({}, window.ECS_EXAM_PRESETS, AppState.customExams);
   }
@@ -111,6 +115,18 @@
   function getActiveExam() {
     const all = getAllExams();
     return all[AppState.activeExamId] || all["SBI_PO"];
+  }
+
+  function getExamTotalQuestions(exam) {
+    return exam.sections.reduce((acc, s) => acc + (parseInt(s.questionCount, 10) || 0), 0);
+  }
+
+  function getExamTotalMaxMarks(exam) {
+    if (exam.totalMaxMarks) return exam.totalMaxMarks;
+    return exam.sections.reduce(
+      (acc, s) => acc + (s.maxMarks ? Number(s.maxMarks) : (Number(s.questionCount) || 0) * (Number(s.positiveMarks || exam.positiveMarks) || 1)),
+      0
+    );
   }
 
   function getCurrentCandidate() {
@@ -157,7 +173,6 @@
     let correctIdx = typeof rawQ.correctIndex === "number" ? rawQ.correctIndex : 0;
 
     if (targetOptionsCount === 5) {
-      // Ensure 5 options for Banking exams (SBI PO / IBPS PO)
       while (optionsEn.length < 5) {
         const fallbackE =
           optionsEn.length === 4
@@ -176,12 +191,10 @@
         if (correctIdx >= 5) correctIdx = 0;
       }
     } else {
-      // Ensure 4 options for SSC / RRB / CAT / MAT
       if (optionsEn.length > 4) {
         const correctOptEn = optionsEn[correctIdx];
         const correctOptHi = optionsHi[correctIdx] || correctOptEn;
         if (correctIdx >= 4) {
-          // Swap correct option into index 3 so it remains among the 4 options
           optionsEn[3] = correctOptEn;
           optionsHi[3] = correctOptHi;
           correctIdx = 3;
@@ -193,6 +206,18 @@
         optionsEn.push("None of the above");
         optionsHi.push("उपर्युक्त में से कोई नहीं");
       }
+    }
+
+    // Deterministically rotate correct option position based on indexNumber so correct answers are distributed across A, B, C, D, (E)
+    const modPos = indexNumber % targetOptionsCount;
+    if (modPos !== correctIdx && modPos < optionsEn.length) {
+      const tmpEn = optionsEn[modPos];
+      const tmpHi = optionsHi[modPos];
+      optionsEn[modPos] = optionsEn[correctIdx];
+      optionsHi[modPos] = optionsHi[correctIdx];
+      optionsEn[correctIdx] = tmpEn;
+      optionsHi[correctIdx] = tmpHi;
+      correctIdx = modPos;
     }
 
     return {
@@ -214,8 +239,8 @@
 
   // ============================================================================
   // All-At-Once API Batch Question Engine
-  // Fetches questions across all exam sections in a single upfront batch before
-  // the test clock begins, guaranteeing zero per-question network latency.
+  // Fetches & synthesizes all 80 to 200 questions across all exam sections in
+  // one single upfront batch before Question 1 renders!
   // ============================================================================
   async function loadAllExamQuestionsBatch(examConfig, onProgress) {
     const startTime = performance.now();
@@ -226,37 +251,50 @@
       if (typeof onProgress === "function") onProgress(msg, progress);
     };
 
+    const totalExpectedQs = getExamTotalQuestions(examConfig);
     logStep(
-      `Initializing ECS iON Batch Synchronizer for ${examConfig.code} (${examConfig.optionsCount}-Option Format)...`,
+      `Initializing ECS iON Batch Synchronizer for ${examConfig.code} (${totalExpectedQs} Questions • ${examConfig.optionsCount}-Option Format • ${examConfig.difficultyLabel || "Standard"})...`,
       10
     );
 
-    // Map section subjects to OpenTDB categories for live API fetching
     const openTdbCategoryMap = {
-      numerical: 19, // Science: Mathematics
-      science: 17,   // Science & Nature
-      reasoning: 18, // Science: Computers & Logic
-      english: 9     // General Knowledge / Verbal
+      numerical: 19,   // Mathematics
+      science: 17,     // Science & Nature
+      engineering: 17, // Science & Engineering
+      computer: 18,    // Computers
+      reasoning: 18,   // Logic & CS
+      awareness: 9,    // General Knowledge
+      banking: 9,      // General / Economy
+      english: 10      // Books / Verbal
     };
 
-    const liveApiCache = {
-      numerical: [],
-      science: [],
-      reasoning: [],
-      english: []
-    };
+    const liveApiCache = {};
 
     if (AppState.apiSourceMode === "hybrid" || AppState.apiSourceMode === "live_opentdb") {
-      const uniqueSubjects = [...new Set(examConfig.sections.map((s) => s.subject || "numerical"))];
-      logStep(`Requesting batch payloads for [${uniqueSubjects.join(", ").toUpperCase()}] via OpenTDB REST API...`, 30);
+      const uniqueSubjects = [
+        ...new Set(
+          examConfig.sections.map((s) =>
+            s.isOptionalLanguage ? AppState.optionalLanguageChoice : s.subject || "numerical"
+          )
+        )
+      ];
+      logStep(`Requesting parallel REST API batches for [${uniqueSubjects.join(", ").toUpperCase()}]...`, 30);
 
       await Promise.all(
         uniqueSubjects.map(async (subj) => {
+          liveApiCache[subj] = [];
+          if (subj === "hindi_lang") return; // Hindi uses dedicated Devanagari bank
           const catId = openTdbCategoryMap[subj] || 9;
-          const url = `https://opentdb.com/api.php?amount=8&category=${catId}&type=multiple`;
+          const diffParam =
+            examConfig.difficulty === "undergraduate"
+              ? "&difficulty=easy"
+              : examConfig.difficulty === "mains"
+              ? "&difficulty=hard"
+              : "";
+          const url = `https://opentdb.com/api.php?amount=15&category=${catId}&type=multiple${diffParam}`;
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3200);
+            const timeoutId = setTimeout(() => controller.abort(), 2800);
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
             if (res.ok) {
@@ -265,62 +303,97 @@
                 liveApiCache[subj] = data.results.map((item, idx) => {
                   const correctText = decodeHtmlEntities(item.correct_answer);
                   const incorrects = (item.incorrect_answers || []).map(decodeHtmlEntities);
-                  const allOpts = [...incorrects];
-                  const insertAt = idx % (allOpts.length + 1);
-                  allOpts.splice(insertAt, 0, correctText);
+                  const allOpts = [correctText, ...incorrects];
                   return {
                     id: `API-${subj.toUpperCase()}-${idx + 1}`,
-                    topic: decodeHtmlEntities(item.category || subj),
+                    topic: `${decodeHtmlEntities(item.category || subj)} (${item.difficulty || examConfig.difficulty || "standard"})`,
                     source: "Live OpenTDB REST API",
                     questionEn: decodeHtmlEntities(item.question),
                     questionHi: `${decodeHtmlEntities(item.question)} [भाषांतरित प्रश्न — ${subj.toUpperCase()}]`,
                     optionsEn: allOpts,
                     optionsHi: allOpts,
-                    correctIndex: insertAt,
-                    explanation: `Official Answer: ${correctText} (Source: Live OpenTDB API Category ${catId}, Difficulty: ${item.difficulty || "standard"}).`
+                    correctIndex: 0,
+                    explanation: `Official Answer: ${correctText} (Source: Live OpenTDB API Category ${catId}, Difficulty: ${item.difficulty || "calibrated"}).`
                   };
                 });
                 logStep(`✓ Live API returned ${liveApiCache[subj].length} items for ${subj.toUpperCase()}.`, 55);
               }
             }
           } catch (err) {
-            logStep(`ℹ Using ECS iON High-Availability Edge Question Bank for ${subj.toUpperCase()}.`, 55);
+            logStep(`ℹ Using ECS iON Edge Competitive Question Synthesizer for ${subj.toUpperCase()}.`, 55);
           }
         })
       );
     } else {
-      logStep(`Loading from ECS iON Verified Competitive Exam Repository (Bilingual Mode)...`, 50);
+      logStep(`Loading from ECS iON Verified Competitive Exam Repository (${examConfig.difficultyLabel || "Standard"})...`, 50);
     }
 
     // Assemble complete section-wise question arrays in one single sitting payload
     let globalQNumber = 1;
     const assembledSections = examConfig.sections.map((sec, secIdx) => {
-      const subj = sec.subject || "numerical";
-      const curatedPool = [...(window.ECS_CURATED_QUESTION_BANK[subj] || window.ECS_CURATED_QUESTION_BANK.numerical)];
-      const livePool = [...(liveApiCache[subj] || [])];
+      const effectiveSubject = sec.isOptionalLanguage
+        ? AppState.optionalLanguageChoice
+        : sec.subject || "numerical";
+      const effectiveSectionName = sec.isOptionalLanguage
+        ? AppState.optionalLanguageChoice === "hindi_lang"
+          ? "Hindi Language (हिन्दी भाषा)"
+          : "English Language"
+        : sec.name;
+
+      const targetCount = Math.max(1, parseInt(sec.questionCount, 10) || 25);
+      const curatedPool = [
+        ...(window.ECS_CURATED_QUESTION_BANK[effectiveSubject] ||
+          window.ECS_CURATED_QUESTION_BANK.numerical)
+      ];
+      const livePool = [...(liveApiCache[effectiveSubject] || [])];
+      const parametricPool = window.ECS_GENERATE_PARAMETRIC_QUESTIONS
+        ? window.ECS_GENERATE_PARAMETRIC_QUESTIONS(
+            effectiveSubject,
+            targetCount,
+            examConfig.difficulty || "graduate"
+          )
+        : [];
 
       let combinedPool = [];
       if (AppState.apiSourceMode === "live_opentdb" && livePool.length > 0) {
-        combinedPool = [...livePool, ...curatedPool];
+        combinedPool = [...livePool, ...curatedPool, ...parametricPool];
       } else if (AppState.apiSourceMode === "hybrid") {
-        // Interleave curated authentic competitive exam questions (with DI tables, passages, Hindi) and live API items
-        const maxLen = Math.max(curatedPool.length, livePool.length);
-        for (let i = 0; i < maxLen; i++) {
-          if (i < curatedPool.length) combinedPool.push({ ...curatedPool[i], source: "ECS iON Competitive API" });
-          if (i < livePool.length) combinedPool.push(livePool[i]);
-        }
+        combinedPool = [
+          ...curatedPool.map((q) => ({ ...q, source: "ECS iON Competitive API" })),
+          ...livePool,
+          ...parametricPool.map((q) => ({ ...q, source: "ECS iON Parametric API" }))
+        ];
       } else {
-        combinedPool = curatedPool.map((q) => ({ ...q, source: "ECS iON Competitive API" }));
+        combinedPool = [
+          ...curatedPool.map((q) => ({ ...q, source: "ECS iON Competitive API" })),
+          ...parametricPool.map((q) => ({ ...q, source: "ECS iON Competitive API" }))
+        ];
       }
 
-      const targetCount = Math.max(1, parseInt(sec.questionCount, 10) || 6);
       const sectionQuestions = [];
-
       for (let i = 0; i < targetCount; i++) {
         const templateQ = combinedPool[i % combinedPool.length];
         const normalized = normalizeQuestionOptions(templateQ, examConfig.optionsCount, globalQNumber);
-        // Enable TITA (Type-In-The-Answer) on eligible CAT questions
-        const isCatTita = examConfig.id === "CAT_IIM" && templateQ.titaEligible && i === targetCount - 1;
+        const isCatTita = examConfig.id === "CAT_IIM" && templateQ.titaEligible && i % 5 === 4;
+
+        // Calculate exact positiveMarks & 1/4th negativeMarks if variableDistribution is specified
+        let qPosMarks = Number(sec.positiveMarks ?? examConfig.positiveMarks ?? 1.0);
+        let qNegMarks = Number(sec.negativeMarks ?? examConfig.negativeMarks ?? 0.25);
+
+        if (sec.variableDistribution) {
+          const vd = sec.variableDistribution;
+          if (i < vd.highCount) {
+            qPosMarks = vd.highMark;
+          } else {
+            qPosMarks = vd.lowMark;
+          }
+          // Constant 1/4th negative marking of the marks awarded for that question!
+          qNegMarks = Number((qPosMarks * 0.25).toFixed(4));
+        }
+
+        if (isCatTita) {
+          qNegMarks = 0;
+        }
 
         sectionQuestions.push({
           ...normalized,
@@ -328,20 +401,25 @@
           sectionIndex: secIdx,
           sectionQuestionNumber: i + 1,
           isTita: isCatTita,
-          positiveMarks: sec.positiveMarks || examConfig.positiveMarks,
-          negativeMarks: isCatTita ? 0 : (sec.negativeMarks ?? examConfig.negativeMarks),
-          // TCS iON Question State:
-          // 'not-visited' | 'not-answered' | 'answered' | 'review' | 'ans-review'
+          positiveMarks: qPosMarks,
+          negativeMarks: qNegMarks,
           status: secIdx === 0 && i === 0 ? "not-answered" : "not-visited",
-          selectedOption: null, // number 0..4 for MCQ
-          titaInput: "",        // string for TITA
+          selectedOption: null,
+          titaInput: "",
           timeSpentSeconds: 0,
           bookmarked: false
         });
       }
 
+      const computedMaxMarks =
+        sec.maxMarks ||
+        Number(sectionQuestions.reduce((acc, q) => acc + Number(q.positiveMarks), 0).toFixed(2));
+
       return {
         ...sec,
+        name: effectiveSectionName,
+        subject: effectiveSubject,
+        maxMarks: computedMaxMarks,
         remainingSeconds: (parseInt(sec.durationMinutes, 10) || 20) * 60,
         completed: false,
         questions: sectionQuestions
@@ -350,7 +428,7 @@
 
     AppState.lastApiLatencyMs = Math.round(performance.now() - startTime);
     logStep(
-      `✓ Batch complete: ${globalQNumber - 1} questions across ${assembledSections.length} sections loaded in ${AppState.lastApiLatencyMs} ms.`,
+      `✓ Batch complete: ${globalQNumber - 1} unique questions across ${assembledSections.length} sections loaded in ${AppState.lastApiLatencyMs} ms.`,
       100
     );
 
@@ -434,12 +512,10 @@
       const activeSec = s.sections[s.activeSectionIndex];
       const activeQ = activeSec.questions[s.activeQuestionIndex];
 
-      // Increment time spent on current question and total elapsed time
       if (activeQ) activeQ.timeSpentSeconds += 1;
       s.totalElapsedSeconds += 1;
 
       if (s.examConfig.sectionalTiming) {
-        // Sectional Timing Mode (SBI PO, IBPS PO, CAT)
         if (activeSec.remainingSeconds > 0) {
           activeSec.remainingSeconds -= 1;
         }
@@ -458,7 +534,6 @@
             renderApp();
             return;
           } else {
-            // Final section expired -> Auto-submit exam!
             clearInterval(AppState.examTimerInterval);
             showToast("Exam time limit reached! Submitting your responses automatically.", "warning");
             finalizeExamSubmission();
@@ -466,7 +541,6 @@
           }
         }
       } else {
-        // Composite Overall Timer Mode (SSC CGL, RRB NTPC, MAT)
         if (s.totalRemainingSeconds > 0) {
           s.totalRemainingSeconds -= 1;
         } else {
@@ -540,13 +614,11 @@
     return typeof q.selectedOption === "number" && q.selectedOption >= 0;
   }
 
-  // Navigate to a specific question inside the active section
   function navigateToQuestion(qIdx) {
     if (!AppState.session) return;
     const sec = AppState.session.sections[AppState.session.activeSectionIndex];
     if (qIdx < 0 || qIdx >= sec.questions.length) return;
 
-    // If current question was 'not-visited', mark it 'not-answered'
     const currentQ = sec.questions[AppState.session.activeQuestionIndex];
     if (currentQ && currentQ.status === "not-visited") {
       currentQ.status = "not-answered";
@@ -561,14 +633,12 @@
     renderApp();
   }
 
-  // Advance to the next question (or wrap to Q1 of active section)
   function advanceToNextQuestion() {
     if (!AppState.session) return;
     const sec = AppState.session.sections[AppState.session.activeSectionIndex];
     if (AppState.session.activeQuestionIndex < sec.questions.length - 1) {
       navigateToQuestion(AppState.session.activeQuestionIndex + 1);
     } else if (!AppState.session.examConfig.sectionalTiming && AppState.session.activeSectionIndex < AppState.session.sections.length - 1) {
-      // In composite timer mode, move smoothly to the first question of the next section
       AppState.session.activeSectionIndex += 1;
       AppState.session.activeQuestionIndex = 0;
       const nextSecQ = AppState.session.sections[AppState.session.activeSectionIndex].questions[0];
@@ -578,14 +648,11 @@
       showToast(`Moved to section: ${AppState.session.sections[AppState.session.activeSectionIndex].name}`, "info");
       renderApp();
     } else {
-      // Wrap around to Question 1 of current section
       navigateToQuestion(0);
       showToast("Reached end of section — wrapped to Question 1.", "info");
     }
   }
 
-  // TCS iON Action Buttons:
-  // 1. Save & Next
   function handleSaveAndNext() {
     if (!AppState.session) return;
     const sec = AppState.session.sections[AppState.session.activeSectionIndex];
@@ -598,20 +665,18 @@
     advanceToNextQuestion();
   }
 
-  // 2. Mark for Review & Next
   function handleMarkForReviewAndNext() {
     if (!AppState.session) return;
     const sec = AppState.session.sections[AppState.session.activeSectionIndex];
     const q = sec.questions[AppState.session.activeQuestionIndex];
     if (hasValidResponse(q)) {
-      q.status = "ans-review"; // Answered & Marked for Review (Considered for evaluation in TCS iON!)
+      q.status = "ans-review";
     } else {
-      q.status = "review"; // Marked for Review (Not Answered)
+      q.status = "review";
     }
     advanceToNextQuestion();
   }
 
-  // 3. Clear Response
   function handleClearResponse() {
     if (!AppState.session) return;
     const sec = AppState.session.sections[AppState.session.activeSectionIndex];
@@ -622,7 +687,6 @@
     renderApp();
   }
 
-  // Finalize Exam Submission & Transition to Mandatory Feedback Screen
   function finalizeExamSubmission() {
     clearInterval(AppState.examTimerInterval);
     AppState.activeModal = null;
@@ -630,21 +694,21 @@
     renderApp();
   }
 
-  // Calculate Final Score & Save Candidate Attempt after Feedback is Submitted
+  // Calculate Final Score (including MAT 200–800 Composite Scaling & Percentile)
   function evaluateAndSaveAttempt() {
     const s = AppState.session;
     if (!s) return;
 
     let totalScore = 0;
-    let maxScore = 0;
+    let maxScore = getExamTotalMaxMarks(s.examConfig);
     let answeredCount = 0;
     let correctCount = 0;
     let wrongCount = 0;
     let unansweredCount = 0;
 
     const sectionResults = s.sections.map((sec) => {
-      let secScore = 0;
-      let secMax = 0;
+      let secRawScore = 0;
+      let secRawMax = 0;
       let secCorrect = 0;
       let secWrong = 0;
       let secUnanswered = 0;
@@ -652,10 +716,8 @@
       sec.questions.forEach((q) => {
         const pos = Number(q.positiveMarks) || 1;
         const neg = Number(q.negativeMarks) || 0;
-        secMax += pos;
-        maxScore += pos;
+        secRawMax += pos;
 
-        // In TCS iON, both 'answered' AND 'ans-review' (Answered & Marked for Review) are evaluated!
         const isEvaluated = (q.status === "answered" || q.status === "ans-review") && hasValidResponse(q);
 
         if (isEvaluated) {
@@ -670,13 +732,11 @@
           if (isCorrect) {
             secCorrect += 1;
             correctCount += 1;
-            secScore += pos;
-            totalScore += pos;
+            secRawScore += pos;
           } else {
             secWrong += 1;
             wrongCount += 1;
-            secScore -= neg;
-            totalScore -= neg;
+            secRawScore -= neg;
           }
         } else {
           secUnanswered += 1;
@@ -684,10 +744,15 @@
         }
       });
 
+      const targetSecMax = Number(sec.maxMarks || secRawMax);
+      const scaledSecScore =
+        secRawMax > 0 ? Number(((secRawScore / secRawMax) * targetSecMax).toFixed(2)) : 0;
+      totalScore += scaledSecScore;
+
       return {
         name: sec.name,
-        score: Number(secScore.toFixed(2)),
-        maxScore: Number(secMax.toFixed(2)),
+        score: scaledSecScore,
+        maxScore: Number(targetSecMax.toFixed(2)),
         correct: secCorrect,
         wrong: secWrong,
         unanswered: secUnanswered,
@@ -706,6 +771,18 @@
       ).toFixed(1)
     );
 
+    // Special MAT 200–800 Composite Score & Percentile Calculation (primarily from the first 4 sections)
+    let matCompositeScore = null;
+    let matPercentile = null;
+    if (s.examConfig.isMatComposite || s.examConfig.id === "MAT_AIMA") {
+      const firstFourSecs = sectionResults.slice(0, 4);
+      const firstFourRaw = firstFourSecs.reduce((acc, sec) => acc + sec.score, 0);
+      const firstFourMax = firstFourSecs.reduce((acc, sec) => acc + sec.maxScore, 0) || 120;
+      const clampedRatio = Math.max(0, Math.min(1, firstFourRaw / firstFourMax));
+      matCompositeScore = Math.round(200 + clampedRatio * 600);
+      matPercentile = Number(Math.min(99.99, Math.max(12.5, 25 + clampedRatio * 74.9)).toFixed(2));
+    }
+
     const attemptRecord = {
       attemptId: `ATT-${Date.now().toString().slice(-4)}`,
       rollNo: s.candidate.rollNo,
@@ -717,6 +794,8 @@
       score: Number(totalScore.toFixed(2)),
       maxScore: Number(maxScore.toFixed(2)),
       cutoffTotal: s.examConfig.cutoffTotal || Number((maxScore * 0.55).toFixed(1)),
+      matCompositeScore,
+      matPercentile,
       accuracy,
       answeredCount,
       correctCount,
@@ -737,16 +816,15 @@
   // ============================================================================
   // UI Renderers for Each Stage of ECS iON
   // ============================================================================
-
-  // Top Global Header Bar (Always allows switching between Candidate Terminal & Admin Command Center when not locked, or shows exam header)
   function renderGlobalTopBar() {
     const exam = getActiveExam();
     const isExamActive = AppState.mode === "exam" || AppState.mode === "submit_confirm";
+    const totalQs = getExamTotalQuestions(exam);
+    const totalMarks = getExamTotalMaxMarks(exam);
 
     return `
       <header class="bg-[#0c2340] text-white border-b border-blue-900 shadow-md no-print">
         <div class="max-w-[1600px] mx-auto px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2">
-          <!-- Brand Logo -->
           <div class="flex items-center gap-3">
             <div class="flex items-center bg-white text-[#0c2340] px-2.5 py-1 rounded font-black tracking-tight text-sm sm:text-base shadow-sm">
               <span class="text-blue-700">ECS</span>
@@ -755,13 +833,12 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="font-bold text-xs sm:text-sm tracking-wide text-white">Elite Consultancy Services iON</span>
-                <span class="hidden md:inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-blue-800/80 text-sky-200 border border-blue-700">Digital Assessment System v4.8</span>
+                <span class="hidden md:inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-blue-800/80 text-sky-200 border border-blue-700">Digital CBT Engine v5.2</span>
               </div>
-              <p class="text-[11px] text-slate-300 truncate max-w-[260px] sm:max-w-[460px]">${exam.title} (${exam.optionsCount} Options • ${exam.sectionalTiming ? "Sectional Timer" : "Composite Timer"})</p>
+              <p class="text-[11px] text-slate-300 truncate max-w-[260px] sm:max-w-[540px]">${exam.title} (${totalQs} Qs • ${totalMarks} Marks • ${exam.optionsCount} Options • ${exam.sectionalTiming ? "Sectional Timer" : "Composite Timer"})</p>
             </div>
           </div>
 
-          <!-- Right Actions / Mode Switcher -->
           <div class="flex items-center gap-2 flex-wrap">
             ${
               !isExamActive
@@ -778,7 +855,7 @@
                     ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
                     : "bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600"
                 }">
-                  <span>⚙️</span> <span>Admin Exam Control (${Object.keys(getAllExams()).length} Formats)</span>
+                  <span>⚙️</span> <span>Admin Exam Control (${Object.keys(getAllExams()).length} Official Formats)</span>
                 </button>
               `
                 : `
@@ -819,6 +896,8 @@
     const exam = getActiveExam();
     const candidate = getCurrentCandidate();
     const allExams = Object.values(getAllExams());
+    const totalQs = getExamTotalQuestions(exam);
+    const totalMarks = getExamTotalMaxMarks(exam);
     const mins = String(Math.floor(AppState.waitingSecondsLeft / 60)).padStart(2, "0");
     const secs = String(AppState.waitingSecondsLeft % 60).padStart(2, "0");
     const totalWait = Math.max(1, exam.waitingRoomSeconds || 10);
@@ -836,25 +915,25 @@
               <div class="text-[11px] text-slate-300 mt-0.5 truncate">📍 ${candidate.labName}</div>
             </div>
 
-            <!-- Active Exam & Quick Format Selector -->
+            <!-- Active Exam & Quick Format Selector (All 25 Exams) -->
             <div class="bg-[#152c4a] p-3 rounded-lg border border-blue-800/80">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] uppercase tracking-wider text-sky-300 font-semibold">Assigned Exam Paper Format</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">${exam.optionsCount} Options • +${exam.positiveMarks}/-${exam.negativeMarks}</span>
+                <span class="text-[11px] uppercase tracking-wider text-sky-300 font-semibold">Select Examination (${allExams.length} Formats)</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">${totalQs} Qs • ${totalMarks}M</span>
               </div>
               <div class="mt-1.5">
                 <select aria-label="Select Exam Format" onchange="window.ECSApp.selectExamPreset(this.value)" class="w-full bg-[#0c2340] text-white text-xs sm:text-sm font-bold rounded px-2.5 py-1.5 border border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-400">
                   ${allExams
                     .map(
                       (ex) =>
-                        `<option value="${ex.id}" ${ex.id === exam.id ? "selected" : ""}>[${ex.id.replace("_", " ")}] ${ex.title} (${ex.optionsCount} Opts)</option>`
+                        `<option value="${ex.id}" ${ex.id === exam.id ? "selected" : ""}>${ex.title} [${getExamTotalQuestions(ex)} Qs • ${ex.totalDurationMinutes}m • ${ex.optionsCount} Opts]</option>`
                     )
                     .join("")}
                 </select>
               </div>
               <div class="text-[11px] text-slate-300 mt-1 flex items-center justify-between">
-                <span>⏱️ Duration: <strong>${exam.totalDurationMinutes} Mins</strong></span>
-                <span>🔒 Sectional Timing: <strong>${exam.sectionalTiming ? "YES (Locked)" : "NO (Free Switch)"}</strong></span>
+                <span>⏱️ Time: <strong>${exam.totalDurationMinutes} Mins</strong></span>
+                <span>🔒 Sectional Timer: <strong>${exam.sectionalTiming ? "YES (Locked)" : "NO (Composite)"}</strong></span>
               </div>
             </div>
 
@@ -876,7 +955,7 @@
         </div>
 
         <!-- Main Center Login & Waiting Gate Card -->
-        <div class="max-w-5xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div class="max-w-6xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <!-- Left Column: Pre-Exam Waiting Gate + Candidate Login Box (7 cols) -->
           <div class="lg:col-span-7 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
             <div class="bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] text-white px-5 py-3.5 flex items-center justify-between">
@@ -972,11 +1051,7 @@
                   </div>
                 </div>
 
-                ${
-                  AppState.virtualKeyboardOpen
-                    ? renderVirtualKeypad()
-                    : ""
-                }
+                ${AppState.virtualKeyboardOpen ? renderVirtualKeypad() : ""}
 
                 <div class="pt-1">
                   <button
@@ -1001,23 +1076,70 @@
             </div>
           </div>
 
-          <!-- Right Column: Multi-Candidate Quick Switcher & Active Exam Overview (5 cols) -->
+          <!-- Right Column: Multi-Candidate Quick Switcher & Active Exam Blueprint (5 cols) -->
           <div class="lg:col-span-5 space-y-4">
+            <!-- Selected Exam Blueprint Summary Card -->
+            <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">📋 Active Paper Format Blueprint</h2>
+                <button type="button" onclick="window.ECSApp.switchMode('admin')" class="text-xs text-blue-600 hover:underline font-semibold">Browse All 25 Formats →</button>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-200">${exam.sector || "Competitive CBT"}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                  exam.difficulty === "undergraduate"
+                    ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                    : exam.difficulty === "mains"
+                    ? "bg-purple-100 text-purple-900 border border-purple-200"
+                    : "bg-amber-100 text-amber-900 border border-amber-200"
+                }">${exam.difficultyLabel || "Graduate Level"}</span>
+              </div>
+              <div class="text-xs text-slate-600 leading-relaxed">${exam.description}</div>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="p-2 rounded bg-slate-50 border border-slate-200">
+                  <span class="text-slate-500 block text-[10px] uppercase">Total Qs / Marks</span>
+                  <span class="font-bold text-slate-900">${totalQs} Qs / ${totalMarks}M</span>
+                </div>
+                <div class="p-2 rounded bg-slate-50 border border-slate-200">
+                  <span class="text-slate-500 block text-[10px] uppercase">Options</span>
+                  <span class="font-bold text-slate-900">${exam.optionsCount} (A–${exam.optionsCount === 5 ? "E" : "D"})</span>
+                </div>
+                <div class="p-2 rounded bg-slate-50 border border-slate-200">
+                  <span class="text-slate-500 block text-[10px] uppercase">Marking</span>
+                  <span class="font-bold text-emerald-700">+${exam.positiveMarks}</span> / <span class="font-bold text-rose-600">-${exam.negativeMarks}</span>
+                </div>
+              </div>
+              <div class="border-t border-slate-200 pt-2">
+                <div class="text-[11px] font-bold text-slate-700 mb-1.5">Section Structure (${exam.sections.length} Sections — Upfront Batch API Load):</div>
+                <div class="space-y-1 max-h-40 overflow-y-auto ecs-scroll pr-1">
+                  ${exam.sections
+                    .map(
+                      (s, idx) => `
+                    <div class="flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1.5 rounded border border-slate-200">
+                      <span class="font-medium text-slate-800 truncate pr-2">${idx + 1}. ${s.name}</span>
+                      <span class="font-mono text-[11px] text-slate-700 shrink-0"><strong>${s.questionCount} Qs</strong> • ${s.displayedMaxMarks || s.maxMarks || s.questionCount}M • ${exam.sectionalTiming ? `${s.durationMinutes}m` : "Comp."}</span>
+                    </div>
+                  `
+                    )
+                    .join("")}
+                </div>
+              </div>
+            </div>
+
             <!-- Quick Candidate Selector Card -->
             <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4">
               <div class="flex items-center justify-between mb-2">
                 <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">👥 Multi-Candidate Shift Roster (1-Click Fill)</h2>
                 <span class="text-[11px] text-blue-600 font-semibold">${AppState.candidates.length} Registered</span>
               </div>
-              <p class="text-xs text-slate-500 mb-3">Click any candidate below to populate their Roll Number & Password on this terminal:</p>
-              <div class="space-y-2 max-h-52 overflow-y-auto ecs-scroll pr-1">
+              <div class="space-y-2 max-h-40 overflow-y-auto ecs-scroll pr-1">
                 ${AppState.candidates
                   .map(
                     (c) => `
                   <button
                     type="button"
                     onclick="window.ECSApp.selectDemoCandidate('${c.rollNo}')"
-                    class="w-full text-left p-2.5 rounded-lg border transition flex items-center justify-between gap-2 ${
+                    class="w-full text-left p-2 rounded-lg border transition flex items-center justify-between gap-2 ${
                       AppState.loginRollInput === c.rollNo
                         ? "bg-blue-50 border-blue-500 ring-1 ring-blue-500"
                         : "bg-slate-50 hover:bg-slate-100 border-slate-200"
@@ -1034,48 +1156,14 @@
                   .join("")}
               </div>
             </div>
-
-            <!-- Selected Exam Blueprint Summary Card -->
-            <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">📋 Active Paper Format Blueprint</h2>
-                <button type="button" onclick="window.ECSApp.switchMode('admin')" class="text-xs text-blue-600 hover:underline font-semibold">Customize in Admin →</button>
-              </div>
-              <div class="text-xs text-slate-600 leading-relaxed">${exam.description}</div>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="p-2 rounded bg-slate-50 border border-slate-200">
-                  <span class="text-slate-500 block text-[10px] uppercase">Options Format</span>
-                  <span class="font-bold text-slate-900">${exam.optionsCount} Options (A–${exam.optionsCount === 5 ? "E" : "D"})</span>
-                </div>
-                <div class="p-2 rounded bg-slate-50 border border-slate-200">
-                  <span class="text-slate-500 block text-[10px] uppercase">Marking Scheme</span>
-                  <span class="font-bold text-emerald-700">+${exam.positiveMarks}</span> / <span class="font-bold text-rose-600">-${exam.negativeMarks}</span>
-                </div>
-              </div>
-              <div class="border-t border-slate-200 pt-2">
-                <div class="text-[11px] font-bold text-slate-700 mb-1.5">Sections (${exam.sections.length}) — Batch API Pre-Load Ready:</div>
-                <div class="space-y-1">
-                  ${exam.sections
-                    .map(
-                      (s, idx) => `
-                    <div class="flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
-                      <span class="font-medium text-slate-800">${idx + 1}. ${s.name}</span>
-                      <span class="font-mono text-[11px] text-slate-600">${s.questionCount} Qs • ${s.durationMinutes}m</span>
-                    </div>
-                  `
-                    )
-                    .join("")}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
         <!-- Bottom TCS iON System Status Footer -->
         <footer class="bg-slate-900 text-slate-400 text-xs py-2.5 px-4 border-t border-slate-800">
           <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            <span>© 2026 Elite Consultancy Services iON (ECS iON) — Self-Contained CBT Assessment Engine</span>
-            <span class="font-mono text-[11px] text-emerald-400">● Batch Question API Engine Ready • Responsive Across All Devices</span>
+            <span>© 2026 Elite Consultancy Services iON (ECS iON) — Supporting 25 Official Exam Formats (SBI, IBPS, RRB, RBI, SSC, Railways, CAT, MAT)</span>
+            <span class="font-mono text-[11px] text-emerald-400">● Upfront Single-Sitting Batch API Ready • Responsive Across All Resolutions</span>
           </div>
         </footer>
       </div>
@@ -1134,16 +1222,16 @@
   function renderInstructionsFlow() {
     const exam = getActiveExam();
     const candidate = getCurrentCandidate();
-    const totalQuestions = exam.sections.reduce((acc, s) => acc + Number(s.questionCount), 0);
+    const totalQuestions = getExamTotalQuestions(exam);
+    const totalMaxMarks = getExamTotalMaxMarks(exam);
 
     return `
       <div class="h-[calc(100vh-56px)] flex flex-col lg:flex-row bg-white overflow-hidden">
-        <!-- Left Instructions Content Area -->
         <div class="flex-1 flex flex-col h-full overflow-hidden border-r border-slate-300">
           <!-- Subheader -->
           <div class="bg-[#38a9eb] text-white px-5 py-2.5 flex items-center justify-between shrink-0">
             <h1 class="font-bold text-sm sm:text-base tracking-wide">
-              ${AppState.instructionsPage === 1 ? "General Instructions (कृपया निम्नलिखित निर्देशों को ध्यान से पढ़ें)" : `Other Important Instructions & Paper Format — ${exam.code}`}
+              ${AppState.instructionsPage === 1 ? "General Instructions (कृपया निम्नलिखित निर्देशों को ध्यान से पढ़ें)" : `Paper Format, Marking Scheme & Candidate Declaration — ${exam.code}`}
             </h1>
             <div class="flex items-center gap-2 text-xs">
               <span>View Instructions In:</span>
@@ -1163,17 +1251,16 @@
               <div class="space-y-4">
                 <h2 class="text-base font-extrabold text-slate-900 underline">Please read the instructions carefully:</h2>
                 <ol class="list-decimal pl-5 space-y-2.5">
-                  <li>Total duration of the <strong>${exam.title}</strong> is <strong>${exam.totalDurationMinutes} minutes</strong>. ${
+                  <li>Total duration of the <strong>${exam.title}</strong> is <strong>${exam.totalDurationMinutes} minutes</strong> for <strong>${totalQuestions} questions</strong> (Max Marks: <strong>${totalMaxMarks}</strong>). ${
                     exam.sectionalTiming
                       ? `<span class="text-rose-700 font-semibold">Sectional timing is ACTIVE: each section has its own dedicated timer and automatically advances upon expiry.</span>`
                       : `<span class="text-emerald-700 font-semibold">Composite timing is ACTIVE: candidates may freely navigate across any section during the ${exam.totalDurationMinutes} minutes.</span>`
                   }</li>
                   <li>The clock will be set at the server. The countdown timer in the top right corner of screen will display the remaining time available for you to complete the examination. When the timer reaches zero, the examination will end by itself.</li>
-                  <li>All questions for this exam sitting are fetched and synchronized <strong>in one single batch upfront</strong> so you experience zero loading delay while switching questions.</li>
+                  <li>All <strong>${totalQuestions} questions</strong> for this exam sitting are fetched and synchronized <strong>in one single batch upfront</strong> so you experience zero loading delay while switching questions.</li>
                   <li>The Question Palette displayed on the right side of screen will show the status of each question using one of the following authentic <strong>ECS iON / TCS iON</strong> symbols:</li>
                 </ol>
 
-                <!-- Authentic 5-State TCS iON Palette Legend Table -->
                 <div class="bg-slate-50 border border-slate-300 rounded-xl p-4 space-y-3 my-4">
                   <div class="flex items-center gap-4">
                     <span class="tcs-badge state-not-visited">1</span>
@@ -1210,8 +1297,11 @@
               <!-- Page 2: Exam Paper Structure, Marking Scheme & Candidate Declaration -->
               <div class="space-y-5">
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <h2 class="text-base font-extrabold text-blue-950">${exam.title} — Paper Format & Marking Scheme</h2>
-                  <p class="text-xs text-blue-800 mt-1">Conducting Body: <strong>${exam.conductingBody}</strong> • Question Option Format: <strong>${exam.optionsCount} Options per MCQ</strong></p>
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-base font-extrabold text-blue-950">${exam.title} — Official Paper Format</h2>
+                    <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-blue-900 text-white">${exam.difficultyLabel || "Standard Competitive Level"}</span>
+                  </div>
+                  <p class="text-xs text-blue-800 mt-1">Conducting Body: <strong>${exam.conductingBody}</strong> • Option Format: <strong>${exam.optionsCount} Options per MCQ</strong> • Marking Rule: <strong>${exam.markingNote || `+${exam.positiveMarks} / -${exam.negativeMarks}`}</strong></p>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -1221,43 +1311,67 @@
                         <th class="border border-slate-600 p-2.5 text-left">Sr. No.</th>
                         <th class="border border-slate-600 p-2.5 text-left">Section / Subject Name</th>
                         <th class="border border-slate-600 p-2.5 text-center">No. of Questions</th>
-                        <th class="border border-slate-600 p-2.5 text-center">Positive Marks</th>
-                        <th class="border border-slate-600 p-2.5 text-center">Negative Marks</th>
+                        <th class="border border-slate-600 p-2.5 text-center">Max Marks</th>
+                        <th class="border border-slate-600 p-2.5 text-center">Marking Scheme</th>
                         <th class="border border-slate-600 p-2.5 text-center">Duration</th>
                       </tr>
                     </thead>
                     <tbody>
                       ${exam.sections
-                        .map(
-                          (s, i) => `
-                        <tr class="odd:bg-white even:bg-slate-50">
-                          <td class="border border-slate-300 p-2.5 font-mono font-bold">${i + 1}</td>
-                          <td class="border border-slate-300 p-2.5 font-bold text-slate-900">${s.name}</td>
-                          <td class="border border-slate-300 p-2.5 text-center font-mono">${s.questionCount}</td>
-                          <td class="border border-slate-300 p-2.5 text-center font-mono text-emerald-700 font-bold">+${s.positiveMarks || exam.positiveMarks}</td>
-                          <td class="border border-slate-300 p-2.5 text-center font-mono text-rose-600 font-bold">-${s.negativeMarks ?? exam.negativeMarks}</td>
-                          <td class="border border-slate-300 p-2.5 text-center font-mono">${
-                            exam.sectionalTiming ? `${s.durationMinutes} Mins (Separately Timed)` : "Composite"
-                          }</td>
-                        </tr>
-                      `
-                        )
+                        .map((s, i) => {
+                          const schemeText = s.variableDistribution
+                            ? `+${s.variableDistribution.highMark}/+${s.variableDistribution.lowMark} (-1/4th)`
+                            : `+${s.positiveMarks || exam.positiveMarks} / -${s.negativeMarks ?? exam.negativeMarks}`;
+                          return `
+                            <tr class="odd:bg-white even:bg-slate-50">
+                              <td class="border border-slate-300 p-2.5 font-mono font-bold">${i + 1}</td>
+                              <td class="border border-slate-300 p-2.5 font-bold text-slate-900">${s.name}</td>
+                              <td class="border border-slate-300 p-2.5 text-center font-mono font-bold">${s.questionCount}</td>
+                              <td class="border border-slate-300 p-2.5 text-center font-mono font-bold text-blue-800">${s.displayedMaxMarks || s.maxMarks || s.questionCount}</td>
+                              <td class="border border-slate-300 p-2.5 text-center font-mono text-xs">${schemeText}</td>
+                              <td class="border border-slate-300 p-2.5 text-center font-mono">${
+                                exam.sectionalTiming ? `${s.durationMinutes} Mins (Separately Timed)` : "Composite"
+                              }</td>
+                            </tr>
+                          `;
+                        })
                         .join("")}
                       <tr class="bg-slate-100 font-extrabold">
                         <td colspan="2" class="border border-slate-300 p-2.5 text-right">Total Sitting Summary</td>
-                        <td class="border border-slate-300 p-2.5 text-center font-mono">${totalQuestions} Questions</td>
-                        <td colspan="2" class="border border-slate-300 p-2.5 text-center">${exam.optionsCount} Options (${exam.optionsCount === 5 ? "Banking A–E" : "Standard A–D"})</td>
+                        <td class="border border-slate-300 p-2.5 text-center font-mono text-blue-900">${totalQuestions} Questions</td>
+                        <td class="border border-slate-300 p-2.5 text-center font-mono text-blue-900">${totalMaxMarks} Marks</td>
+                        <td class="border border-slate-300 p-2.5 text-center">${exam.optionsCount} Options (${exam.optionsCount === 5 ? "Banking A–E" : "Standard A–D"})</td>
                         <td class="border border-slate-300 p-2.5 text-center font-mono">${exam.totalDurationMinutes} Mins</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
+                ${
+                  exam.hasOptionalLanguageSection
+                    ? `
+                  <div class="bg-indigo-50 border border-indigo-300 rounded-xl p-4 space-y-2">
+                    <label for="ecs-optional-lang-sec" class="block font-extrabold text-indigo-950 text-xs sm:text-sm">
+                      📌 Mandatory Section 4 Language Paper Choice (English Language OR Hindi Language — 40 Questions):
+                    </label>
+                    <select
+                      id="ecs-optional-lang-sec"
+                      onchange="window.ECSApp.setOptionalLanguageChoice(this.value)"
+                      class="bg-white border-2 border-indigo-600 rounded-lg px-3 py-2 font-bold text-xs sm:text-sm text-slate-900"
+                    >
+                      <option value="english" ${AppState.optionalLanguageChoice === "english" ? "selected" : ""}>Opt for Section 4A: English Language (40 Questions • 40 Marks)</option>
+                      <option value="hindi_lang" ${AppState.optionalLanguageChoice === "hindi_lang" ? "selected" : ""}>Opt for Section 4B: Hindi Language / हिन्दी भाषा (40 Questions • 40 Marks)</option>
+                    </select>
+                  </div>
+                `
+                    : ""
+                }
+
                 <!-- Language Selection & Mandatory Declaration Box -->
                 <div class="bg-amber-50/90 border border-amber-300 rounded-xl p-4 space-y-3">
                   <div class="flex flex-wrap items-center gap-3">
                     <label for="ecs-default-lang-select" class="font-bold text-slate-900 text-xs sm:text-sm">
-                      Choose your default question language:
+                      Choose your default question display language:
                     </label>
                     <select
                       id="ecs-default-lang-select"
@@ -1316,14 +1430,14 @@
                       : "px-7 py-2.5 rounded bg-slate-300 text-slate-500 text-xs sm:text-sm font-bold cursor-not-allowed"
                   }"
                 >
-                  I am ready to begin
+                  I am ready to begin (${totalQuestions} Qs)
                 </button>
               `
             }
           </div>
         </div>
 
-        <!-- Right Candidate Sidebar (Matches TCS iON Pre-Exam Right Panel) -->
+        <!-- Right Candidate Sidebar -->
         <aside class="w-full lg:w-72 bg-slate-50 p-5 flex flex-row lg:flex-col items-center justify-center gap-4 border-t lg:border-t-0 shrink-0">
           <div class="w-20 h-20 lg:w-28 lg:h-28 rounded-xl border-2 border-slate-300 shadow overflow-hidden shrink-0">
             ${renderCandidateAvatarSVG(candidate)}
@@ -1353,7 +1467,7 @@
             <div class="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center font-black text-xl animate-pulse">⚡</div>
             <div>
               <h2 class="text-base sm:text-lg font-extrabold">Synchronizing Single-Sitting Question Batch via API</h2>
-              <p class="text-xs text-slate-300">Loading all questions upfront into encrypted browser memory (${exam.code})</p>
+              <p class="text-xs text-slate-300">Loading all ${getExamTotalQuestions(exam)} questions upfront into encrypted browser memory (${exam.code})</p>
             </div>
           </div>
 
@@ -1381,7 +1495,6 @@
     const displaySecs = exam.sectionalTiming ? activeSec.remainingSeconds : s.totalRemainingSeconds;
     const sectionCounts = getQuestionStateCounts(activeSec.questions);
 
-    // Filter questions in right palette if filter active
     const filteredQuestions = activeSec.questions.filter((q) => {
       if (AppState.paletteFilter === "answered") return q.status === "answered" || q.status === "ans-review";
       if (AppState.paletteFilter === "not_answered") return q.status === "not-answered" || q.status === "not-visited";
@@ -1414,7 +1527,7 @@
                         ? "bg-slate-200 text-slate-500 border border-slate-300 cursor-not-allowed"
                         : "bg-white text-slate-800 hover:bg-blue-50 border border-slate-300"
                     }"
-                    title="${sec.name}: ${counts.answered + counts["ans-review"]}/${counts.total} Answered"
+                    title="${sec.name}: ${counts.answered + counts["ans-review"]}/${counts.total} Answered (Max Marks: ${sec.maxMarks})"
                   >
                     <span>${isLocked ? "🔒 " : ""}${sec.name}</span>
                     <span class="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] ${
@@ -1459,7 +1572,7 @@
             <div class="bg-white ecs-surface border-b border-slate-300 px-4 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div class="flex items-center gap-2.5 flex-wrap">
                 <span class="font-extrabold text-sm sm:text-base text-blue-900 dark:text-sky-300">
-                  Question No. ${activeQ.sectionQuestionNumber}
+                  Question No. ${activeQ.sectionQuestionNumber} <span class="text-xs font-normal text-slate-500">of ${activeSec.questions.length}</span>
                 </span>
                 <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 font-semibold">
                   ${activeQ.isTita ? "Type In The Answer (TITA)" : `MCQ (${exam.optionsCount} Options)`}
@@ -1508,7 +1621,7 @@
               </div>
             </div>
 
-            <!-- Question Body (Supports Passage/DI Split Pane or Full Width) -->
+            <!-- Question Body -->
             <div class="flex-1 overflow-y-auto ecs-scroll p-4 sm:p-6 question-content-area cbt-watermark-bg">
               <div class="${
                 activeQ.passageEn
@@ -1518,7 +1631,6 @@
                 ${
                   activeQ.passageEn
                     ? `
-                    <!-- Left Pane: Comprehension Passage / DI Data Table -->
                     <div class="lg:col-span-6 bg-slate-50 ecs-subsurface p-4 rounded-xl border border-slate-300 space-y-3">
                       <div class="text-xs font-bold uppercase tracking-wider text-blue-800 border-b border-slate-200 pb-1.5">
                         📊 Reference Data / Passage Set
@@ -1538,9 +1650,7 @@
                     : ""
                 }
 
-                <!-- Right / Main Pane: Question Stem + 4/5 Options or TITA Keypad -->
                 <div class="${activeQ.passageEn ? "lg:col-span-6 space-y-5" : "space-y-5"}">
-                  <!-- Question Stem -->
                   <div class="p-4 rounded-xl bg-slate-50/70 ecs-subsurface border border-slate-200 space-y-2.5">
                     ${
                       AppState.defaultLanguage === "en" || AppState.defaultLanguage === "bilingual"
@@ -1556,7 +1666,6 @@
                     }
                   </div>
 
-                  <!-- Options List (4 or 5 Options) OR TITA Numerical Keypad -->
                   ${
                     activeQ.isTita
                       ? renderTitaKeypadInput(activeQ)
@@ -1675,7 +1784,6 @@
               ? "hidden"
               : "hidden lg:flex w-80"
           } flex-col bg-[#eef5fc] ecs-subsurface border-l border-slate-300 h-full shrink-0 shadow-xl lg:shadow-none">
-            <!-- Candidate Info Strip -->
             <div class="p-3 bg-white ecs-surface border-b border-slate-300 flex items-center justify-between gap-2.5 shrink-0">
               <div class="flex items-center gap-2.5 min-w-0">
                 <div class="w-11 h-11 rounded-lg border border-slate-300 overflow-hidden shrink-0">
@@ -1723,7 +1831,7 @@
             <!-- Section Palette Banner & Filter Pills -->
             <div class="bg-[#2563eb] text-white px-3 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
               <span class="truncate">${activeSec.name}</span>
-              <span class="text-[10px] bg-blue-900 px-1.5 py-0.5 rounded">Choose a Question</span>
+              <span class="text-[10px] bg-blue-900 px-1.5 py-0.5 rounded">${activeSec.questions.length} Qs • ${activeSec.maxMarks}M</span>
             </div>
 
             <div class="px-3 py-1.5 bg-slate-200/70 border-b border-slate-300 flex items-center gap-1 text-[10px] font-bold shrink-0">
@@ -1749,7 +1857,7 @@
                 .join("")}
             </div>
 
-            <!-- Question Number Grid -->
+            <!-- Question Number Grid (Scrolls smoothly for 30, 40, 50, 60 questions) -->
             <div class="flex-1 overflow-y-auto ecs-scroll p-3">
               <div class="grid grid-cols-5 gap-2.5 justify-items-center">
                 ${filteredQuestions
@@ -1761,7 +1869,7 @@
                         type="button"
                         onclick="window.ECSApp.navigateToQuestion(${idx})"
                         class="tcs-badge state-${q.status} ${isCurrent ? "active-question" : ""}"
-                        title="Question ${q.sectionQuestionNumber} (${q.status.replace("-", " ")})"
+                        title="Question ${q.sectionQuestionNumber} (+${q.positiveMarks}/-${q.negativeMarks})"
                       >
                         ${q.sectionQuestionNumber}
                       </button>
@@ -1830,7 +1938,6 @@
     `;
   }
 
-  // Modals inside Exam Console: Question Paper, Instructions, Profile, Scientific Calculator, Section Submit
   function renderActiveConsoleModal() {
     if (!AppState.activeModal || !AppState.session) return "";
     const s = AppState.session;
@@ -1841,7 +1948,7 @@
         <div class="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
           <div class="bg-white text-slate-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
             <div class="bg-[#0c2340] text-white px-5 py-3 flex items-center justify-between">
-              <h3 class="font-bold text-sm sm:text-base">📄 Complete Section Question Paper — ${activeSec.name}</h3>
+              <h3 class="font-bold text-sm sm:text-base">📄 Complete Section Question Paper — ${activeSec.name} (${activeSec.questions.length} Qs)</h3>
               <button type="button" onclick="window.ECSApp.closeModal()" class="text-slate-300 hover:text-white font-bold">✕ Close</button>
             </div>
             <div class="p-5 overflow-y-auto ecs-scroll space-y-4 text-xs sm:text-sm">
@@ -1850,7 +1957,7 @@
                   (q) => `
                 <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="font-extrabold text-blue-900">Q.${q.sectionQuestionNumber} (${q.topic})</span>
+                    <span class="font-extrabold text-blue-900">Q.${q.sectionQuestionNumber} (${q.topic} • +${q.positiveMarks}/-${q.negativeMarks})</span>
                     <button type="button" onclick="window.ECSApp.navigateToQuestion(${q.sectionQuestionNumber - 1}); window.ECSApp.closeModal();" class="text-xs px-2.5 py-1 rounded bg-blue-600 text-white font-semibold">Jump to Q.${q.sectionQuestionNumber}</button>
                   </div>
                   <div class="text-slate-800">${q.questionEn}</div>
@@ -1873,8 +1980,8 @@
               <button type="button" onclick="window.ECSApp.closeModal()" class="text-slate-300 hover:text-white font-bold">✕ Close</button>
             </div>
             <div class="p-5 overflow-y-auto space-y-3 text-xs sm:text-sm text-slate-700">
-              <p><strong>Exam:</strong> ${s.examConfig.title} (${s.examConfig.optionsCount} Options)</p>
-              <p><strong>Marking Scheme:</strong> +${s.examConfig.positiveMarks} for correct response, -${s.examConfig.negativeMarks} for incorrect response, 0 for unattempted.</p>
+              <p><strong>Exam:</strong> ${s.examConfig.title} (${s.examConfig.optionsCount} Options • ${getExamTotalQuestions(s.examConfig)} Questions • ${getExamTotalMaxMarks(s.examConfig)} Max Marks)</p>
+              <p><strong>Marking Scheme:</strong> ${s.examConfig.markingNote || `+${s.examConfig.positiveMarks} for correct response, -${s.examConfig.negativeMarks} for incorrect response`}.</p>
               <p><strong>Important TCS iON Rule:</strong> Questions marked as <em>"Answered and Marked for Review"</em> (purple circle with green checkmark) <strong>WILL be evaluated</strong> during final scoring.</p>
             </div>
           </div>
@@ -2065,7 +2172,7 @@
   }
 
   // ============================================================================
-  // 6. MANDATORY POST-EXAM CANDIDATE FEEDBACK FORM (Before Exiting Test Screen)
+  // 6. MANDATORY POST-EXAM CANDIDATE FEEDBACK FORM
   // ============================================================================
   function renderCandidateFeedbackForm() {
     const s = AppState.session;
@@ -2203,6 +2310,31 @@
               </button>
             </div>
           </div>
+
+          ${
+            res.matCompositeScore
+              ? `
+            <!-- MAT Special 200-800 Composite Score & Percentile Banner -->
+            <div class="bg-gradient-to-r from-indigo-900 to-blue-900 text-white rounded-2xl p-5 shadow-md border border-indigo-700 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black">Official AIMA MAT Composite Scaling</span>
+                <h2 class="text-base sm:text-lg font-extrabold mt-1">MAT Scaled Composite Score (200–800 Range) & Percentile</h2>
+                <p class="text-xs text-indigo-200">Calculated primarily from the first four sections (Language Comprehension, Intelligence & Critical Reasoning, Data Analysis, Mathematical Skills).</p>
+              </div>
+              <div class="flex items-center gap-4">
+                <div class="bg-slate-950/60 px-4 py-2.5 rounded-xl border border-indigo-500 text-center">
+                  <div class="text-[10px] uppercase text-indigo-300 font-bold">Composite Score</div>
+                  <div class="text-2xl font-black text-amber-400 font-mono">${res.matCompositeScore} <span class="text-xs text-slate-300">/ 800</span></div>
+                </div>
+                <div class="bg-slate-950/60 px-4 py-2.5 rounded-xl border border-emerald-500 text-center">
+                  <div class="text-[10px] uppercase text-emerald-300 font-bold">MAT Percentile</div>
+                  <div class="text-2xl font-black text-emerald-400 font-mono">${res.matPercentile}%ile</div>
+                </div>
+              </div>
+            </div>
+          `
+              : ""
+          }
 
           <!-- KPI Metric Cards -->
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -2343,11 +2475,16 @@
   }
 
   // ============================================================================
-  // 8. ADMIN EXAM COMMAND CENTER (Format Builder, Marking, 4/5 Options, API Lab, Multi-Candidate Roster)
+  // 8. ADMIN EXAM COMMAND CENTER (All 25 Formats, Filter by Sector, Custom Builder)
   // ============================================================================
   function renderAdminPortal() {
     const activeExam = getActiveExam();
     const allExams = Object.values(getAllExams());
+    const sectors = ["ALL", "Banking", "Regional Rural Banks", "RBI / Central Bank", "Railways", "Railways Technical", "SSC / Govt", "Management"];
+    const filteredExams =
+      AppState.sectorFilter === "ALL"
+        ? allExams
+        : allExams.filter((ex) => (ex.sector || "Banking") === AppState.sectorFilter);
 
     return `
       <div class="min-h-[calc(100vh-56px)] bg-slate-100 py-6 px-4">
@@ -2356,8 +2493,8 @@
           <div class="bg-gradient-to-r from-[#0c2340] to-[#1e3a8a] text-white rounded-2xl p-5 shadow-lg flex flex-wrap items-center justify-between gap-4">
             <div>
               <span class="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black">ECS iON Controller Mode</span>
-              <h1 class="text-lg sm:text-2xl font-black mt-1">Admin Examination Format & Candidate Command Center</h1>
-              <p class="text-xs text-slate-300">Configure marking schemes, 5-option banking vs 4-option government formats, sectional timing, batch APIs, and multi-candidate rosters.</p>
+              <h1 class="text-lg sm:text-2xl font-black mt-1">Admin Examination Format & Candidate Command Center (${allExams.length} Formats)</h1>
+              <p class="text-xs text-slate-300">Includes all 25 official SBI, IBPS, RRB (Regional Rural Banks), RBI Assistant, Railway (NTPC Grad/UG, Group-D, Section Controller, Technician Signal), SSC (CGL, CHSL), CAT & MAT formats.</p>
             </div>
             <button
               type="button"
@@ -2371,7 +2508,7 @@
           <!-- Admin Navigation Tabs -->
           <div class="flex flex-wrap gap-2 border-b border-slate-300 pb-2">
             ${[
-              { id: "presets", label: "📚 Exam Format Presets (SBI, IBPS, SSC, RRB, CAT, MAT)" },
+              { id: "presets", label: `📚 All ${allExams.length} Official Exam Formats` },
               { id: "builder", label: "🛠️ Custom Exam & Marking Builder" },
               { id: "api_lab", label: "🌐 Question Batch API Configuration" },
               { id: "candidates", label: `👥 Candidate Roster (${AppState.candidates.length})` },
@@ -2393,56 +2530,84 @@
               .join("")}
           </div>
 
-          <!-- Tab 1: Exam Presets -->
+          <!-- Tab 1: All 25 Exam Presets with Sector Filter -->
           ${
             AppState.adminTab === "presets"
               ? `
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              ${allExams
-                .map((ex) => {
-                  const isSelected = ex.id === activeExam.id;
-                  const totalQ = ex.sections.reduce((acc, s) => acc + Number(s.questionCount), 0);
-                  return `
-                    <div class="bg-white rounded-xl border-2 p-5 flex flex-col justify-between transition shadow-sm ${
-                      isSelected ? "border-blue-600 ring-2 ring-blue-500/20" : "border-slate-200 hover:border-slate-300"
-                    }">
-                      <div class="space-y-3">
-                        <div class="flex items-center justify-between gap-2">
-                          <span class="px-2.5 py-0.5 rounded text-[11px] font-bold ${
-                            ex.optionsCount === 5
-                              ? "bg-purple-100 text-purple-900 border border-purple-300"
-                              : "bg-sky-100 text-sky-900 border border-sky-300"
-                          }">
-                            ${ex.optionsCount} Options (${ex.optionsCount === 5 ? "A–E Banking" : "A–D Standard"})
-                          </span>
-                          <span class="text-xs font-mono text-slate-500">${ex.code}</span>
+            <div class="space-y-4">
+              <div class="flex flex-wrap items-center gap-1.5 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-extrabold uppercase text-slate-500 mr-2">Filter by Sector:</span>
+                ${sectors
+                  .map(
+                    (sec) => `
+                  <button
+                    type="button"
+                    onclick="window.ECSApp.setSectorFilter('${sec}')"
+                    class="px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      AppState.sectorFilter === sec
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }"
+                  >${sec === "ALL" ? `All (${allExams.length})` : sec}</button>
+                `
+                  )
+                  .join("")}
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${filteredExams
+                  .map((ex) => {
+                    const isSelected = ex.id === activeExam.id;
+                    const totalQ = getExamTotalQuestions(ex);
+                    const totalM = getExamTotalMaxMarks(ex);
+                    return `
+                      <div class="bg-white rounded-xl border-2 p-5 flex flex-col justify-between transition shadow-sm ${
+                        isSelected ? "border-blue-600 ring-2 ring-blue-500/20" : "border-slate-200 hover:border-slate-300"
+                      }">
+                        <div class="space-y-3">
+                          <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                              ex.optionsCount === 5
+                                ? "bg-purple-100 text-purple-900 border border-purple-300"
+                                : "bg-sky-100 text-sky-900 border border-sky-300"
+                            }">
+                              ${ex.optionsCount} Options (${ex.optionsCount === 5 ? "A–E Banking" : "A–D Govt/Mgmt"})
+                            </span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                              ex.difficulty === "undergraduate"
+                                ? "bg-emerald-100 text-emerald-900"
+                                : ex.difficulty === "mains"
+                                ? "bg-rose-100 text-rose-900"
+                                : "bg-amber-100 text-amber-900"
+                            }">${ex.difficultyLabel || "Graduate"}</span>
+                          </div>
+                          <h3 class="font-extrabold text-sm sm:text-base text-slate-900">${ex.title}</h3>
+                          <p class="text-xs text-slate-600 leading-relaxed">${ex.description}</p>
+                          <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <div><span class="text-slate-500 block text-[10px]">Total Qs / Max Marks</span><strong>${totalQ} Qs • ${totalM} Marks</strong></div>
+                            <div><span class="text-slate-500 block text-[10px]">Sectional Timing</span><strong>${ex.sectionalTiming ? "YES (Locked)" : "NO (Composite)"}</strong></div>
+                            <div><span class="text-slate-500 block text-[10px]">Duration</span><strong>${ex.totalDurationMinutes} Mins (${ex.sections.length} Secs)</strong></div>
+                            <div><span class="text-slate-500 block text-[10px]">Marking</span><strong>+${ex.positiveMarks} / -${ex.negativeMarks}</strong></div>
+                          </div>
                         </div>
-                        <h3 class="font-extrabold text-base text-slate-900">${ex.title}</h3>
-                        <p class="text-xs text-slate-600 leading-relaxed">${ex.description}</p>
-                        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
-                          <div><span class="text-slate-500 block text-[10px]">Marking</span><strong>+${ex.positiveMarks} / -${ex.negativeMarks}</strong></div>
-                          <div><span class="text-slate-500 block text-[10px]">Sectional Timing</span><strong>${ex.sectionalTiming ? "YES (Locked)" : "NO (Composite)"}</strong></div>
-                          <div><span class="text-slate-500 block text-[10px]">Questions / Time</span><strong>${totalQ} Qs • ${ex.totalDurationMinutes}m</strong></div>
-                          <div><span class="text-slate-500 block text-[10px]">Calculator</span><strong class="uppercase">${ex.calculatorMode}</strong></div>
+                        <div class="pt-4 mt-4 border-t border-slate-200 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onclick="window.ECSApp.selectExamPreset('${ex.id}')"
+                            class="flex-1 py-2 px-3 rounded-lg font-bold text-xs transition ${
+                              isSelected
+                                ? "bg-emerald-600 text-white"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                            }"
+                          >
+                            ${isSelected ? "✓ Currently Active on Terminal" : "Activate This Exam Format"}
+                          </button>
                         </div>
                       </div>
-                      <div class="pt-4 mt-4 border-t border-slate-200 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onclick="window.ECSApp.selectExamPreset('${ex.id}')"
-                          class="flex-1 py-2 px-3 rounded-lg font-bold text-xs transition ${
-                            isSelected
-                              ? "bg-emerald-600 text-white"
-                              : "bg-blue-600 hover:bg-blue-700 text-white"
-                          }"
-                        >
-                          ${isSelected ? "✓ Currently Active on Terminal" : "Activate This Exam Format"}
-                        </button>
-                      </div>
-                    </div>
-                  `;
-                })
-                .join("")}
+                    `;
+                  })
+                  .join("")}
+              </div>
             </div>
           `
               : ""
@@ -2469,8 +2634,8 @@
                 <div>
                   <label class="block text-xs font-bold uppercase text-slate-700 mb-1" for="adm-exam-options">Options per Question</label>
                   <select id="adm-exam-options" class="w-full rounded-lg border border-slate-300 px-3 py-2 font-bold bg-white">
-                    <option value="5" ${activeExam.optionsCount === 5 ? "selected" : ""}>5 Options (A, B, C, D, E — Banking/SBI/IBPS)</option>
-                    <option value="4" ${activeExam.optionsCount === 4 ? "selected" : ""}>4 Options (A, B, C, D — SSC/RRB/CAT/MAT)</option>
+                    <option value="5" ${activeExam.optionsCount === 5 ? "selected" : ""}>5 Options (A, B, C, D, E — Banking/SBI/IBPS/RBI)</option>
+                    <option value="4" ${activeExam.optionsCount === 4 ? "selected" : ""}>4 Options (A, B, C, D — SSC/Railways/CAT/MAT)</option>
                   </select>
                 </div>
                 <div>
@@ -2531,20 +2696,20 @@
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
               <h2 class="text-base font-extrabold text-slate-900">🌐 Single-Sitting Question Batch API Engine</h2>
               <p class="text-xs sm:text-sm text-slate-600">
-                Choose how ECS iON populates questions across Numerical Ability, Reasoning Ability, General Science, and English Language. Regardless of mode, <strong>100% of questions for a sitting are fetched in one batch before Question 1 renders</strong>.
+                Choose how ECS iON populates questions across Numerical Ability, Reasoning Ability, General Science, Basic Science & Engineering, Computer Knowledge, Banking Awareness, and English/Hindi. Regardless of mode, <strong>100% of questions (up to 200 per sitting) are fetched in one batch before Question 1 renders</strong>.
               </p>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 ${[
                   {
                     id: "hybrid",
-                    title: "⚡ Hybrid Live API + Competitive Bank (Recommended)",
-                    desc: "Combines live REST API fetches from OpenTDB (Science, Mathematics, Logic) with ECS iON's bilingual Indian competitive exam bank (DI tables, Syllogisms, Seating Puzzles)."
+                    title: "⚡ Hybrid Live API + Competitive Synthesizer (Recommended)",
+                    desc: "Combines live REST API fetches from OpenTDB with ECS iON's bilingual Indian competitive exam bank and parametric question generator for 100% unique 80–200 question papers."
                   },
                   {
                     id: "live_opentdb",
                     title: "🌐 Prioritize Live OpenTDB REST API",
-                    desc: "Prioritizes live external HTTP fetches from opentdb.com mapped by section category, automatically synthesizing a 5th option when 5-option Banking mode is active."
+                    desc: "Prioritizes live external HTTP fetches from opentdb.com mapped by section category and difficulty, automatically synthesizing a 5th option when 5-option Banking mode is active."
                   },
                   {
                     id: "curated",
@@ -2576,7 +2741,7 @@
                   onclick="window.ECSApp.testBatchApiInAdmin()"
                   class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow"
                 >
-                  🚀 Test Upfront Batch API Load Now
+                  🚀 Test Upfront Batch API Load Now (${getExamTotalQuestions(activeExam)} Qs)
                 </button>
               </div>
 
@@ -2705,7 +2870,7 @@
                         <td class="border border-slate-300 p-2.5 font-mono font-bold">${a.attemptId}</td>
                         <td class="border border-slate-300 p-2.5 font-bold">${a.candidateName} <span class="font-mono text-xs text-slate-500">(${a.rollNo})</span></td>
                         <td class="border border-slate-300 p-2.5">${a.examTitle}</td>
-                        <td class="border border-slate-300 p-2.5 text-center font-mono font-extrabold text-blue-700">${a.score} / ${a.maxScore}</td>
+                        <td class="border border-slate-300 p-2.5 text-center font-mono font-extrabold text-blue-700">${a.score} / ${a.maxScore}${a.matCompositeScore ? ` (MAT: ${a.matCompositeScore}/800)` : ""}</td>
                         <td class="border border-slate-300 p-2.5 text-center font-mono text-emerald-700 font-bold">${a.accuracy}%</td>
                         <td class="border border-slate-300 p-2.5 text-center font-bold text-amber-600">★ ${a.feedbackRating}</td>
                         <td class="border border-slate-300 p-2.5 text-xs text-slate-600">${a.feedbackComment}</td>
@@ -2790,7 +2955,20 @@
       startWaitingLobbyTimer();
       renderApp();
       const exam = getActiveExam();
-      showToast(`Activated format: ${exam.title} (${exam.optionsCount} Options)`, "info");
+      showToast(
+        `Activated: ${exam.title} (${getExamTotalQuestions(exam)} Qs • ${exam.optionsCount} Options)`,
+        "info"
+      );
+    },
+
+    setSectorFilter(sector) {
+      AppState.sectorFilter = sector;
+      renderApp();
+    },
+
+    setOptionalLanguageChoice(choice) {
+      AppState.optionalLanguageChoice = choice;
+      renderApp();
     },
 
     skipWaitingTimer() {
@@ -2853,7 +3031,6 @@
         return;
       }
 
-      // Find registered candidate or dynamically register ad-hoc candidate roll number
       let cand = AppState.candidates.find((c) => c.rollNo === roll);
       if (!cand) {
         cand = {
@@ -2999,7 +3176,6 @@
       if (!AppState.session) return;
       const sec = AppState.session.sections[AppState.session.activeSectionIndex];
       const q = sec.questions[AppState.session.activeQuestionIndex];
-      // Clicking the same option again deselects it (per TCS iON instruction #8)
       if (q.selectedOption === optIdx) {
         q.selectedOption = null;
       } else {
@@ -3158,7 +3334,6 @@
     },
 
     exitToTerminalForNextCandidate() {
-      // Advance demo candidate selection to next candidate on roster for smooth multi-candidate testing
       const currentIdx = AppState.candidates.findIndex((c) => c.rollNo === AppState.loginRollInput);
       const nextCand = AppState.candidates[(currentIdx + 1) % AppState.candidates.length];
       if (nextCand) {
@@ -3172,7 +3347,6 @@
       showToast("Exited exam console. Terminal ready for the next candidate login.", "info");
     },
 
-    // Admin Portal Actions
     setAdminTab(tabId) {
       AppState.adminTab = tabId;
       renderApp();
@@ -3236,7 +3410,7 @@
       const exam = getActiveExam();
       await loadAllExamQuestionsBatch(exam);
       renderApp();
-      showToast(`Verified upfront batch load (${AppState.lastApiLatencyMs} ms)!`, "success");
+      showToast(`Verified upfront batch load of ${getExamTotalQuestions(exam)} questions (${AppState.lastApiLatencyMs} ms)!`, "success");
     },
 
     registerNewCandidate() {
@@ -3260,7 +3434,7 @@
         dob: password,
         systemNo,
         labName: "Ion Digital Zone IDZ Salt Lake Sector V",
-        shift: "Shift-1 (09:00 AM - 10:00 AM)",
+        shift: "Shift-1 (09:00 AM - 11:00 AM)",
         avatarHue: (AppState.candidates.length * 67) % 360
       });
       Storage.set("ecs_candidates", AppState.candidates);
