@@ -153,22 +153,23 @@ window.ECS_EXAM_PRESETS = {
     conductingBody: "Indian Institutes of Management (IIMs)",
     sector: "Management",
     difficulty: "mains",
-    difficultyLabel: "Post-Graduate Management Entrance (High Rigor)",
-    category: "Management • 4 Options + TITA • Scientific Calc",
+    difficultyLabel: "IIM CAT Standard (Fixed VARC → DILR → QA Order • MCQ + TITA)",
+    category: "Management • 4 Options + TITA • Strict 40m×3 Lock",
     optionsCount: 4,
     sectionalTiming: true,
+    strictSectionalLock: true,
     totalDurationMinutes: 120,
     totalMaxMarks: 204,
     positiveMarks: 3.0,
     negativeMarks: 1.0,
-    markingNote: "+3.00 for correct, -1.00 for wrong MCQ (0 negative for TITA)",
+    markingNote: "Correct: +3 | Incorrect MCQ: -1 | Incorrect TITA (Non-MCQ): 0 | Unattempted: 0",
     calculatorMode: "scientific",
     waitingRoomSeconds: 10,
-    cutoffTotal: 92.0,
-    description: "Official IIM CAT format: VARC (24 Qs, 40 Mins, Max-marks 72), DILR (22 Qs, 40 Mins, Max-marks 66), QA (22 Qs, 40 Mins, Max-marks 66) with +3/-1 marking and On-Screen Scientific Calculator.",
+    cutoffTotal: 96.0,
+    description: "Official IIM CAT CBT (120 Mins, 68 Qs, 204 Marks) in fixed sectional order VARC (24 Qs, 40m, 72M: ~70% RC Passages, Para Jumbles, Summary/Completion, Odd-One-Out) → DILR (22 Qs, 40m, 66M: 4 Multi-Question Caselet Sets on Tables, Bar/Pie Charts, Venn Diagrams, Tournaments & Puzzles) → QA (22 Qs, 40m, 66M: Arithmetic, Algebra, Geometry, Number System & Modern Math). Mix of MCQs (+3/-1) and TITA (+3/0).",
     sections: [
-      { id: "varc", name: "VARC (Verbal Ability and Reading Comprehension)", subject: "english", questionCount: 24, maxMarks: 72, durationMinutes: 40, positiveMarks: 3.0, negativeMarks: 1.0 },
-      { id: "dilr", name: "DILR (Data Interpretation and Logical Reasoning)", subject: "reasoning", questionCount: 22, maxMarks: 66, durationMinutes: 40, positiveMarks: 3.0, negativeMarks: 1.0 },
+      { id: "varc", name: "VARC (Verbal Ability & Reading Comprehension)", subject: "english", questionCount: 24, maxMarks: 72, durationMinutes: 40, positiveMarks: 3.0, negativeMarks: 1.0 },
+      { id: "dilr", name: "DILR (Data Interpretation & Logical Reasoning)", subject: "reasoning", questionCount: 22, maxMarks: 66, durationMinutes: 40, positiveMarks: 3.0, negativeMarks: 1.0 },
       { id: "qa", name: "QA (Quantitative Aptitude)", subject: "numerical", questionCount: 22, maxMarks: 66, durationMinutes: 40, positiveMarks: 3.0, negativeMarks: 1.0 }
     ]
   },
@@ -1615,4 +1616,1126 @@ window.ECS_GENERATE_PARAMETRIC_QUESTIONS = function (subject, count, difficulty 
   }
 
   return generated;
+};
+
+
+// ============================================================================
+// IIM CAT (Common Admission Test) High-Rigor Dynamic Question & Caselet Engine
+// Generates 68 CAT-Standard Questions (VARC: 24, DILR: 22, QA: 22) with
+// Dynamic Session Parameterization + Live API Context Enrichment + SVG Charts
+// ============================================================================
+
+window.ECS_GENERATE_CAT_SECTION = function (sectionId, targetCount, liveApiItems = []) {
+  // Dynamic sitting seed so numerical parameters & caselet values shift across sittings
+  const seed = Math.floor((Date.now() / 1000) % 7) + 2; // 2..8
+  const questions = [];
+
+  // --------------------------------------------------------------------------
+  // SECTION 1: VARC (24 Questions, 40 Mins, 72 Marks — ~70% RC + 30% VA MCQ/TITA)
+  // --------------------------------------------------------------------------
+  if (sectionId === "varc") {
+    const apiContextNote =
+      liveApiItems && liveApiItems.length > 0
+        ? `<div class="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500"><em>Live API Scholarly Cross-Ref: ${liveApiItems[0].topic || "Epistemology & Critical Theory"}</em></div>`
+        : "";
+
+    const rcPassages = [
+      {
+        title: "RC Passage 1 (Epistemology & Philosophy of Science — Q1 to Q4)",
+        passageEn: `<strong>Reading Comprehension — Passage 1:</strong><br><br>
+        The demarcation problem in the philosophy of science—distinguishing authentic empirical inquiry from pseudoscientific sophistry—was famously reframed by Karl Popper through the criterion of <em>falsifiability</em>. For Popper, inductive verification is logically porous: no finite sequence of white swans can logically entail the universal proposition that all swans are white, whereas a single observation of a black swan suffices to modus-tollens refute it. Consequently, a theory commands scientific legitimacy not by accumulating confirmatory instances, but by stickily exposing its neck to empirical refutation via risky, prohibitory predictions.<br><br>
+        Yet Imre Lakatos and Willard Van Orman Quine exposed a profound structural vulnerability in naive falsificationism. According to the Duhem–Quine thesis, scientific hypotheses never confront the tribunal of experience in isolation; they are embedded within an intricate web of auxiliary assumptions, boundary conditions, and instrumentation theories. When a recalcitrant observation contradicts a theoretical prediction, deductive logic alone cannot pinpoint whether the rot lies in the core theoretical postulate or in a peripheral auxiliary assumption. Scientists routinely—and often rationally—shield their "hard core" postulate by modifying the "protective belt" of auxiliary hypotheses, much as 19th-century astronomers preserved Newtonian celestial mechanics against Uranus's anomalous orbit by postulating an unseen perturbing planet (Neptune) rather than abandoning universal gravitation.<br><br>
+        Lakatos therefore proposed evaluating not isolated hypotheses, but evolving <em>Scientific Research Programmes</em> over time. A programme is "progressive" if its auxiliary modifications generate novel, hitherto unexpected empirical predictions ("excess empirical content") that are subsequently corroborated; it turns "degenerative" when its protective belt is patched exclusively through post-hoc linguistic adjustments that merely accommodate known anomalies without predicting a single new fact.${apiContextNote}`,
+        questions: [
+          {
+            topic: "Reading Comprehension — Philosophy of Science (Central Thesis)",
+            questionEn: "Which of the following best encapsulates the primary methodological transition traced by the author across the three paragraphs?",
+            optionsEn: [
+              "From evaluating isolated hypotheses via single-instance deductive refutation to appraising holistic research programmes by the heuristic fertility of their auxiliary modifications.",
+              "From relying on inductive enumeration of confirmatory evidence to adopting Thomas Kuhn's sociological relativistic view of incommensurable paradigms.",
+              "From defending Newtonian celestial mechanics through ad-hoc mathematical patches to rejecting all unobservable theoretical entities in empirical science.",
+              "From Quine's radical holism that denies any empirical truth to Popper's strict logical positivism grounded in sensory verification."
+            ],
+            correctIndex: 0,
+            explanation: "The passage traces the shift from Popper's naive falsification of isolated hypotheses (para 1) through the Duhem–Quine critique of isolated testing (para 2) to Lakatos's appraisal of whole research programmes based on whether auxiliary changes yield novel predictions (para 3)."
+          },
+          {
+            topic: "Reading Comprehension — Critical Reasoning (Application)",
+            questionEn: "Based on Lakatos's framework as described in the passage, under which of the following scenarios would a macroeconomic research programme be classified as 'degenerative'?",
+            optionsEn: [
+              "When confronted with stagflation, economists repeatedly redefine the 'natural rate of unemployment' after each quarter's data release solely to preserve their core Phillips-curve equation, without generating any new testable forecast.",
+              "When economists modify their core monetary transmission equation by incorporating credit-channel frictions, which then accurately predicts a previously unforeseen liquidity trap in bond yields.",
+              "When a central bank abandons its legacy DSGE model entirely after a single quarter of forecast error during an exogenous supply shock.",
+              "When empirical researchers discover that a measurement error in household survey sampling, rather than the core consumption theory, caused a statistical anomaly."
+            ],
+            correctIndex: 0,
+            explanation: "In paragraph 3, Lakatos defines a programme as 'degenerative' when its protective belt is patched purely via post-hoc adjustments to accommodate anomalies without predicting novel empirical facts."
+          },
+          {
+            topic: "Reading Comprehension — Logical Inference",
+            questionEn: "Why does the author cite the 19th-century discovery of Neptune in the second paragraph?",
+            optionsEn: [
+              "To illustrate that refusing to abandon a core scientific theory in the face of an empirical anomaly can sometimes be scientifically fruitful when the anomaly is resolved via a testable auxiliary hypothesis.",
+              "To demonstrate that Karl Popper's criterion of falsifiability was historically practiced by astronomers long before 20th-century philosophy of science.",
+              "To argue that Newtonian mechanics was a degenerative research programme that survived only through institutional dogma.",
+              "To prove that observational instruments in the 19th century were too imprecise to adjudicate between competing gravitational theories."
+            ],
+            correctIndex: 0,
+            explanation: "The Neptune example shows that scientists rationally protected the Newtonian 'hard core' by postulating an auxiliary hypothesis (an unseen planet), which turned out to be a progressive, empirically corroborated move."
+          },
+          {
+            topic: "Reading Comprehension — Epistemic Structure",
+            questionEn: "The Duhem–Quine thesis, as presented in the passage, challenges Popperian falsificationism primarily by demonstrating that:",
+            optionsEn: [
+              "An empirical refutation is logically ambiguous regarding which specific component of a theoretical bundle is false.",
+              "Universal affirmative statements can be conclusively verified if the sample size approaches the population limit.",
+              "Scientific theories are purely linguistic conventions that never make contact with experimental observation.",
+              "Auxiliary assumptions are more fundamental and immutable than the hard-core axioms of a discipline."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 2 states that when a prediction fails, deductive logic alone cannot identify whether the error lies in the core postulate or in one of the auxiliary assumptions."
+          }
+        ]
+      },
+      {
+        title: "RC Passage 2 (Macroeconomics, Triffin Dilemma & Monetary Asymmetry — Q5 to Q8)",
+        passageEn: `<strong>Reading Comprehension — Passage 2:</strong><br><br>
+        In international monetary architecture, the hegemony of a single national fiat currency as the global reserve asset engenders a structural contradiction first diagnosed by economist Robert Triffin in 1960. To lubricate expanding global trade and satisfy foreign central banks' precautionary demand for safe reserve assets, the reserve-issuing nation must persistently supply its currency to the rest of the world by running current account deficits. Yet the cumulative proliferation of these external liabilities relative to the issuer's finite fiscal or metallic backing inexorably erodes confidence in the currency's long-term store-of-value function—the very attribute that made it coveted as a reserve asset in the first place.<br><br>
+        In the contemporary post-Bretton Woods regime of floating exchange rates and deep eurodollar shadow banking, this classical Triffin dilemma has mutated into a <em>financial-cycle asymmetry</em>. When the reserve-issuing central bank loosens monetary policy to stabilize its domestic labor market, cheap cross-border wholesale funding floods into emerging market economies (EMEs), inflating domestic credit bubbles, appreciating EME currencies, and compressing risk premia. Conversely, when domestic inflationary pressures compel the reserve issuer to tighten policy, global dollar liquidity contracts abruptly, triggering capital flight, currency depreciation, and balance-sheet crises among EME corporates holding unhedged foreign-currency debt.<br><br>
+        Consequently, the textbook Mundell–Fleming "trilemma"—which posits that a nation with an open capital account can achieve monetary policy autonomy simply by allowing its exchange rate to float freely—collapses into a <em>dilemma</em> (or "irreconcilable duo"). Because global risk appetite and cross-border leverage are synchronized by the reserve issuer's policy rate, a floating exchange rate no longer insulates an emerging economy's domestic financial conditions from external monetary shocks; absent macroprudential capital-flow management, peripheral central banks are reduced to importing the hegemon's monetary stance.`,
+        questions: [
+          {
+            topic: "Reading Comprehension — Monetary Economics (Inference)",
+            questionEn: "According to the passage, why does the classical Mundell–Fleming 'trilemma' reduce to a 'dilemma' in the contemporary global financial system?",
+            optionsEn: [
+              "Because cross-border capital flows and global risk premia are so tightly governed by the reserve-issuing central bank's policy cycle that exchange-rate flexibility alone cannot secure domestic monetary autonomy.",
+              "Because emerging market economies have legally pegged their currencies to gold under post-Bretton Woods IMF covenants.",
+              "Because floating exchange rates automatically eliminate all current account deficits in the reserve-issuing nation.",
+              "Because domestic inflation in emerging markets is determined exclusively by rural agricultural supply shocks rather than credit conditions."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 3 explains that because global risk appetite and cross-border leverage are synchronized by the reserve issuer's policy rate, a floating exchange rate fails to insulate domestic financial conditions unless capital-flow management is used."
+          },
+          {
+            topic: "Reading Comprehension — Critical Reasoning (Strengthen/Weaken)",
+            questionEn: "Which of the following empirical findings, if true, would most seriously WEAKEN the author's argument in the third paragraph?",
+            optionsEn: [
+              "Emerging market economies with freely floating exchange rates and completely open capital accounts consistently maintained independent domestic credit growth and stable corporate balance sheets during sharp interest-rate hikes by the reserve-issuing central bank.",
+              "Emerging market corporations that borrowed heavily in foreign currency experienced severe defaults when the reserve-issuing central bank raised interest rates.",
+              "Central banks that imposed targeted macroprudential taxes on short-term speculative capital inflows achieved greater interest-rate independence.",
+              "The global share of trade invoiced in the primary reserve currency remained above 80% even as the issuer's share of world GDP declined."
+            ],
+            correctIndex: 0,
+            explanation: "The author argues in para 3 that floating exchange rates alone cannot insulate an open-capital-account EME from the reserve issuer's tightening. Finding that floating-rate open EMEs remained completely insulated would directly weaken this claim."
+          },
+          {
+            topic: "Reading Comprehension — Conceptual Paradox",
+            questionEn: "The 'structural contradiction' at the heart of the classical Triffin dilemma (Paragraph 1) arises because:",
+            optionsEn: [
+              "The mechanism required to provide adequate global liquidity (persistent external deficits by the issuer) progressively undermines the credibility of the reserve asset's value.",
+              "Foreign central banks simultaneously demand both fixed gold convertibility and negative nominal interest rates on sovereign bonds.",
+              "The reserve-issuing country is forced to run persistent trade surpluses that drain liquidity from developing nations.",
+              "Domestic voters in the reserve-issuing country prefer currency depreciation while foreign exporters prefer currency appreciation."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 1 states that supplying global liquidity requires persistent deficits, which accumulate external liabilities that erode confidence in the currency's store-of-value function."
+          },
+          {
+            topic: "Reading Comprehension — Contextual Vulnerability",
+            questionEn: "During a monetary tightening phase by the reserve-issuing central bank, which entity in an emerging market economy is identified as most acutely vulnerable to a balance-sheet crisis?",
+            optionsEn: [
+              "Domestic firms that have financed local-currency revenue assets with unhedged foreign-currency liabilities.",
+              "Export-oriented software firms whose revenues are denominated in the appreciating reserve currency and who hold zero debt.",
+              "Sovereign wealth funds holding diversified portfolios of short-term reserve-currency treasury bills.",
+              "Rural cooperative banks that lend exclusively in domestic currency funded by sticky local retail deposits."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 2 explicitly highlights 'balance-sheet crises among EME corporates holding unhedged foreign-currency debt' when the domestic currency depreciates and dollar liquidity contracts."
+          }
+        ]
+      },
+      {
+        title: "RC Passage 3 (Evolutionary Biology, Epigenetics & Red Queen Dynamics — Q9 to Q12)",
+        passageEn: `<strong>Reading Comprehension — Passage 3:</strong><br><br>
+        For much of the twentieth century, the Modern Evolutionary Synthesis enshrining Neo-Darwinian orthodoxy rested on two foundational pillars: that heritable variation arises exclusively from stochastic, environment-blind genetic mutations, and that macroevolutionary divergence is merely the gradual, cumulative extrapolation of microevolutionary allele-frequency shifts over geological time. Weismann's barrier—the strict unidirectional flow of information from germline DNA to soma—rendered Lamarckian inheritance of acquired characteristics a biological heresy.<br><br>
+        Over the past two decades, however, developmental evolutionary biology ("evo-devo") and molecular epigenetics have complicated this austere architecture without rehabilitating naive Lamarckism. Mechanisms such as cytosine DNA methylation, histone tail acetylation, and non-coding RNA interference allow environmental stressors—ranging from nutritional deprivation to predator kairomones—to modulate gene expression profiles without altering the underlying nucleotide sequence. Crucially, a subset of these epigenetic marks escapes transgenerational reprogramming in gametes, conferring rapid, reversible phenotypic plasticity across two to चार (four) generations.<br><br>
+        In fluctuating ecological niches or intense host–parasite "Red Queen" co-evolutionary arms races, waiting for a fortuitous random point mutation can mean demographic extinction. Transgenerational epigenetic inheritance acts as an evolutionary capacitor—buffering populations during acute environmental perturbations through rapid phenotypic accommodation until slower, permanent genetic assimilation ("the Baldwin effect") can hardwire advantageous traits into the genome.`,
+        questions: [
+          {
+            topic: "Reading Comprehension — Evolutionary Biology (Function of Metaphor)",
+            questionEn: "In the third paragraph, the author characterizes transgenerational epigenetic inheritance as an 'evolutionary capacitor' primarily because it:",
+            optionsEn: [
+              "Provides a rapid, temporary phenotypic bridge across environmental shocks, buying time for slower genetic selection to permanently fix adaptive traits.",
+              "Permanently replaces DNA nucleotide sequences as the sole medium of long-term macroevolutionary speciation.",
+              "Prevents any environmental signal from influencing somatic gene expression during an organism's lifetime.",
+              "Accelerates the rate of random cosmic-ray point mutations in germline chromosomes by several orders of magnitude."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 3 explains that epigenetic inheritance buffers populations during acute perturbations through rapid phenotypic accommodation until slower genetic assimilation hardwires the traits."
+          },
+          {
+            topic: "Reading Comprehension — Nuance & Authorial Stance",
+            questionEn: "Which of the following statements best captures the author's attitude toward the 'Modern Evolutionary Synthesis'?",
+            optionsEn: [
+              "It was a foundational framework whose strict exclusion of environmentally induced heritable variation requires qualification in light of molecular epigenetic discoveries.",
+              "It was a pseudoscientific dogma that has been completely falsified and replaced by classical 19th-century Lamarckism.",
+              "It remains entirely sufficient to explain rapid multi-generational phenotypic shifts without invoking any molecular regulatory mechanisms.",
+              "It correctly predicted cytosine methylation and non-coding RNA interference as the primary drivers of the Baldwin effect."
+            ],
+            correctIndex: 0,
+            explanation: "In paragraph 2, the author notes that evo-devo and epigenetics 'have complicated this austere architecture without rehabilitating naive Lamarckism'."
+          },
+          {
+            topic: "Reading Comprehension — Specific Detail Inference",
+            questionEn: "According to the passage, how do epigenetic modifications differ structurally from classical Neo-Darwinian mutations?",
+            optionsEn: [
+              "Epigenetic modifications alter the transcriptional expression of genes in response to environmental cues without changing the DNA base-pair sequence itself.",
+              "Epigenetic modifications permanently delete recessive alleles from the somatic cells while leaving germline gametes untouched.",
+              "Epigenetic modifications are irreversible across millones of years, whereas nucleotide mutations revert within two generations.",
+              "Epigenetic modifications occur only in unicellular prokaryotes that lack a Weismann germline-soma barrier."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 2 states that methylation and histone acetylation 'modulate gene expression profiles without altering the underlying nucleotide sequence'."
+          },
+          {
+            topic: "Reading Comprehension — Ecological Context",
+            questionEn: "Why is transgenerational epigenetic plasticity particularly advantageous in 'Red Queen' host–parasite systems?",
+            optionsEn: [
+              "Because the pace of biotic co-evolutionary threats often outstrips the slow waiting time required for random beneficial genetic mutations to arise and spread.",
+              "Because parasites lack nucleic acids and can only be neutralized by histone acetylation proteins.",
+              "Because host populations in stable environments never experience natural selection on their physical traits.",
+              "Because the Baldwin effect prevents any genetic mutation from occurring in sexually reproducing hosts."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 3 notes that in fluctuating niches or intense host–parasite Red Queen arms races, waiting for a random point mutation can lead to extinction before adaptation occurs."
+          }
+        ]
+      },
+      {
+        title: "RC Passage 4 (Algorithmic Governance, Goodhart's Law & Epistemic Critique — Q13 to Q16)",
+        passageEn: `<strong>Reading Comprehension — Passage 4:</strong><br><br>
+        When Charles Goodhart formulated his eponymous adage in 1975—that "any observed statistical regularity will tend to collapse once pressure is placed upon it for control purposes"—he was critiquing the Bank of England's reliance on monetary aggregates as policy targets. Yet in the era of algorithmic governance and platform capitalism, Goodhart's Law has metastasized from a technical caveat in econometrics into the defining pathology of institutional life. Whether in hospital waiting-time dashboards, academic citation indices (h-index), or social-media engagement algorithms, proxy metrics initially selected because they correlated with an underlying substantive good are systematically gamed once resource allocation or reputational survival is tethered to them.<br><br>
+        Philosopher C. Thi Nguyen distinguishes between two distinct epistemic hazards in contemporary information ecosystems: <em>epistemic bubbles</em> and <em>echo chambers</em>. An epistemic bubble is merely a structure of omission—a homogeneous network formed through homophily or algorithmic personalization in which dissenting voices are inadvertently excluded. Because trust in outside epistemic authorities is not actively poisoned, a bubble can be punctured simply by exposing its inhabitants to broader evidence. An echo chamber, by contrast, is a fortified structure of <em>epistemic discrediting</em>: it preemptively inoculates its members against external corrective testimony by cultivating a conspiracy theory or ideological axiom that frames all outside experts as malevolent or compromised.<br><br>
+        When engagement-maximizing recommender systems optimize for dwell time and outrage—treating user click-through rate as a proxy for informational value—they inadvertently incentivize the transition from benign epistemic bubbles into self-sealing echo chambers, because narratives that delegitimize external fact-checkers generate superior retention metrics.`,
+        questions: [
+          {
+            topic: "Reading Comprehension — Conceptual Distinction",
+            questionEn: "Based on C. Thi Nguyen's framework in Paragraph 2, why does simply presenting verified factual counter-evidence often fail to persuade members of an 'echo chamber'?",
+            optionsEn: [
+              "Because an echo chamber preemptively discredits the legitimacy of external sources, causing contrary evidence from those sources to be interpreted as proof of outside malice.",
+              "Because members of an echo chamber have never been exposed to the internet or algorithmic recommendation feeds.",
+              "Because epistemic bubbles and echo chambers are identical structures that both arise solely from accidental omission of information.",
+              "Because Goodhart's Law states that statistical regularities in physics cease to operate inside digital networks."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 2 explains that while an epistemic bubble is a structure of omission easily punctured by exposure, an echo chamber actively discredits outside authorities, inoculating members against external corrective testimony."
+          },
+          {
+            topic: "Reading Comprehension — Synthesis across Paragraphs",
+            questionEn: "How does the author connect Goodhart's Law (Paragraph 1) to the proliferation of echo chambers (Paragraph 3)?",
+            optionsEn: [
+              "When platforms use engagement and dwell time as proxy targets for informational quality, algorithmic optimization rewards polarizing content that seals users into echo chambers.",
+              "When central banks target monetary aggregates, commercial banks create social media echo chambers to manipulate bond yields.",
+              "Academic citation indices (h-index) were intentionally designed by philosophers to eliminate epistemic bubbles in universities.",
+              "Goodhart's Law proves that algorithmic personalization always increases exposure to diverse, bipartisan viewpoints."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 3 links Goodhart's proxy distortion (optimizing click-through/dwell time as a proxy for value) to the promotion of outrage and delegitimizing narratives that build echo chambers."
+          },
+          {
+            topic: "Reading Comprehension — Parallel Reasoning",
+            questionEn: "Which of the following institutional scenarios best exemplifies the operation of Goodhart's Law as defined in the first paragraph?",
+            optionsEn: [
+              "A municipal police department ties precinct funding to a reduction in recorded felony complaints, prompting officers to systematically downgrade reported burglaries to minor trespassing infractions.",
+              "A meteorology department upgrades its supercomputer resolution and consequently achieves a 15% reduction in 72-hour cyclone track forecast errors.",
+              "A pharmaceutical regulator requires double-blind randomized controlled trials before approving a novel oncology compound.",
+              "A public library records a natural seasonal increase in book borrowing during summer school vacations without altering its lending rules."
+            ],
+            correctIndex: 0,
+            explanation: "When recorded felony count (a statistical proxy for public safety) is turned into a high-stakes control target for funding, agents game the metric (downgrading reports), collapsing its validity as a measure of actual crime."
+          },
+          {
+            topic: "Reading Comprehension — Intervention Strategy",
+            questionEn: "According to the passage, which intervention would be sufficient to dismantle an 'epistemic bubble' but insufficient to dismantle an 'echo chamber'?",
+            optionsEn: [
+              "Broadening the user's information feed to include omitted perspectives and mainstream empirical reporting.",
+              "Increasing the algorithmic weight assigned to outrage-inducing headlines and click-through rates.",
+              "Tying journalist compensation strictly to the number of clicks their articles generate in the first hour.",
+              "Eliminating all peer-reviewed scientific journals in favor of anonymous crowd-sourced polls."
+            ],
+            correctIndex: 0,
+            explanation: "Paragraph 2 explicitly states that because an epistemic bubble is merely a structure of omission, it 'can be punctured simply by exposing its inhabitants to broader evidence', whereas an echo chamber resists mere exposure."
+          }
+        ]
+      }
+    ];
+
+    // Push the 16 RC Questions (Q1–Q16)
+    rcPassages.forEach((rc) => {
+      rc.questions.forEach((q, qIdx) => {
+        questions.push({
+          id: `CAT-VARC-RC-${questions.length + 1}`,
+          topic: q.topic,
+          source: "ECS iON CAT VARC Engine",
+          passageEn: rc.passageEn,
+          passageHi: rc.passageEn,
+          questionEn: q.questionEn,
+          questionHi: q.questionEn,
+          optionsEn: q.optionsEn,
+          optionsHi: q.optionsEn,
+          correctIndex: q.correctIndex,
+          isTita: false,
+          titaAnswer: null,
+          explanation: q.explanation
+        });
+      });
+    });
+
+    // Questions 17–19: 3 CAT Para Jumbles (TITA Non-MCQ, 4-digit exact sequence, 0 negative marks)
+    const paraJumbles = [
+      {
+        topic: "Verbal Ability — Para Jumble (TITA — 4-Sentence Sequence)",
+        questionEn: `<strong>Directions (TITA — No Negative Marking):</strong> The four sentences (labelled 1, 2, 3, and 4) below, when properly sequenced, would yield a coherent paragraph. Enter the exact four-digit sequence of numbers (e.g., 1234) using the on-screen keypad:<br><br>
+        <strong>(1)</strong> Yet this apparent democratization of authorship masks a deeper concentration of curation power within a handful of proprietary foundation-model weights.<br>
+        <strong>(2)</strong> Generative artificial intelligence has drastically lowered the marginal cost of producing syntactically polished prose, code, and visual media.<br>
+        <strong>(3)</strong> When billions of downstream queries are mediated through identical alignment filters, stylistic and epistemic diversity risks converging toward an algorithmic mean.<br>
+        <strong>(4)</strong> Early enthusiasts consequently heralded these tools as an unambiguous triumph for decentralized creative expression.`,
+        titaAnswer: "2413",
+        explanation: "Sentence (2) introduces the core phenomenon (Generative AI lowering marginal cost of production). Sentence (4) follows with 'Early enthusiasts consequently heralded these tools...'. Sentence (1) introduces the contrast ('Yet this apparent democratization... masks a deeper concentration...'). Sentence (3) elaborates on the consequence of that concentration ('When billions of downstream queries are mediated...'). Correct sequence: 2413."
+      },
+      {
+        topic: "Verbal Ability — Para Jumble (TITA — 4-Sentence Sequence)",
+        questionEn: `<strong>Directions (TITA — No Negative Marking):</strong> The four sentences (labelled 1, 2, 3, and 4) below, when properly sequenced, would yield a coherent paragraph. Enter the exact four-digit sequence of numbers:<br><br>
+        <strong>(1)</strong> In such environments, price signals cease to reflect genuine scarcity and instead mirror the speculative expectations of leveraged intermediaries.<br>
+        <strong>(2)</strong> Classical general equilibrium models assume that financial markets act as frictionless mirrors of underlying real-economy fundamentals.<br>
+        <strong>(3)</strong> Hyman Minsky demonstrated, however, that prolonged macroeconomic stability endogenously breeds euphoric debt accumulation—a dynamic he termed the 'Financial Instability Hypothesis'.<br>
+        <strong>(4)</strong> Once debt-service obligations outpace operating cash flows, even a minor uptick in short-term interest rates can force fire-sales of illiquid assets.`,
+        titaAnswer: "2314",
+        explanation: "(2) states the classical equilibrium assumption. (3) contrasts it via 'Hyman Minsky demonstrated, however, that prolonged stability breeds euphoric debt...'. (1) explains what happens 'In such environments' of speculative leverage, and (4) concludes with the tipping point ('Once debt-service obligations outpace...'). Sequence: 2314."
+      },
+      {
+        topic: "Verbal Ability — Para Jumble (TITA — 4-Sentence Sequence)",
+        questionEn: `<strong>Directions (TITA — No Negative Marking):</strong> The four sentences (labelled 1, 2, 3, and 4) below, when properly sequenced, would yield a coherent paragraph. Enter the exact four-digit sequence:<br><br>
+        <strong>(1)</strong> Consequently, cartographers must choose which geometric property—area, shape, distance, or direction—to preserve at the expense of distorting the others.<br>
+        <strong>(2)</strong> Gerardus Mercator's 1569 cylindrical projection solved the navigator's problem by rendering lines of constant compass bearing as straight segments, albeit bygrotesquely inflating high-latitude landmasses.<br>
+        <strong>(3)</strong> Carl Friedrich Gauss's <em>Theorema Egregium</em> proves mathematically that a spherical surface cannot be flattened onto a Euclidean plane without local stretching or tearing.<br>
+        <strong>(4)</strong> Every two-dimensional world map is therefore an inescapable exercise in mathematical compromise and ideological prioritization.`,
+        titaAnswer: "3124",
+        explanation: "(3) states Gauss's mathematical theorem about flattening a sphere. (1) states the direct cartographic consequence ('Consequently, cartographers must choose...'). (2) gives the classic historical example (Mercator's 1569 projection), and (4) synthesizes the takeaway ('Every two-dimensional world map is therefore...'). Sequence: 3124."
+      }
+    ];
+
+    paraJumbles.forEach((pj) => {
+      questions.push({
+        id: `CAT-VARC-PJ-${questions.length + 1}`,
+        topic: pj.topic,
+        source: "ECS iON CAT VARC Engine",
+        passageEn: null,
+        passageHi: null,
+        questionEn: pj.questionEn,
+        questionHi: pj.questionEn,
+        optionsEn: ["2413", "3124", "2314", "4213"],
+        optionsHi: ["2413", "3124", "2314", "4213"],
+        correctIndex: 0,
+        isTita: true,
+        titaEligible: true,
+        titaAnswer: pj.titaAnswer,
+        explanation: pj.explanation
+      });
+    });
+
+    // Questions 20–21: 2 CAT Odd-One-Out (TITA Non-MCQ, single digit 1..5, 0 negative marks)
+    const oddOneOuts = [
+      {
+        topic: "Verbal Ability — Odd Sentence Out (TITA — Enter Digit 1 to 5)",
+        questionEn: `<strong>Directions (TITA — No Negative Marking):</strong> Five jumbled sentences (labelled 1, 2, 3, 4, and 5) are given below. Four of them can be put together to form a coherent paragraph. Identify the <strong>odd sentence out</strong> and enter its single digit number (1, 2, 3, 4, or 5):<br><br>
+        <strong>(1)</strong> Bioluminescence has evolved independently at least ninety-four times across marine taxa, from dinoflagellates to deep-sea anglerfish.<br>
+        <strong>(2)</strong> In the aphotic abyssal zone where sunlight cannot penetrate, this cold chemical light serves diverse ecological functions including counter-illumination camouflage and mate attraction.<br>
+        <strong>(3)</strong> Hydrothermal vent ecosystems rely on chemosynthetic sulfur-oxidizing bacteria rather than photosynthetic phytoplankton as the base of their trophic pyramid.<br>
+        <strong>(4)</strong> The biochemical reaction typically involves the oxidation of a light-emitting luciferin substrate catalyzed by the enzyme luciferase.<br>
+        <strong>(5)</strong> Because nearly 100% of the reaction energy is emitted as visible photons rather than heat, marine bioluminescence represents one of nature's most thermodynamically efficient light sources.`,
+        titaAnswer: "3",
+        explanation: "Sentences (1), (2), (4), and (5) form a cohesive paragraph about marine bioluminescence (its evolution, ecological role in the aphotic zone, luciferin-luciferase biochemistry, and thermodynamic efficiency). Sentence (3) is about hydrothermal vent chemosynthesis and does not fit the paragraph. Odd one out: 3."
+      },
+      {
+        topic: "Verbal Ability — Odd Sentence Out (TITA — Enter Digit 1 to 5)",
+        questionEn: `<strong>Directions (TITA — No Negative Marking):</strong> Five jumbled sentences (labelled 1, 2, 3, 4, and 5) are given below. Four of them form a coherent paragraph. Identify the <strong>odd sentence out</strong> and enter its number (1, 2, 3, 4, or 5):<br><br>
+        <strong>(1)</strong> Loss aversion—the cognitive asymmetry whereby the disutility of losing a sum of money looms roughly twice as large as the utility of gaining the exact same amount—lies at the heart of Kahneman and Tversky's Prospect Theory.<br>
+        <strong>(2)</strong> This reference-dependent valuation explains the 'endowment effect', in which individuals demand significantly more to part with an object they already own than they would be willing to pay to acquire it.<br>
+        <strong>(3)</strong> Hyperbolic discounting describes why consumers disproportionately prefer smaller immediate rewards over larger delayed payoffs when both options are in the near future.<br>
+        <strong>(4)</strong> In financial markets, the same aversion to realizing losses causes retail investors to hold onto depreciating stocks far too long while prematurely selling winning positions.<br>
+        <strong>(5)</strong> Thus, departing from expected-utility maximization, human decision-makers evaluate outcomes not in terms of absolute terminal wealth, but as gains and losses relative to a status-quo anchor.`,
+        titaAnswer: "3",
+        explanation: "Sentences (1), (2), (4), and (5) discuss Prospect Theory, loss aversion, reference-dependence, the endowment effect, and the disposition effect. Sentence (3) introduces hyperbolic time discounting, an unrelated behavioral anomaly. Odd one out: 3."
+      }
+    ];
+
+    oddOneOuts.forEach((ooo) => {
+      questions.push({
+        id: `CAT-VARC-OOO-${questions.length + 1}`,
+        topic: ooo.topic,
+        source: "ECS iON CAT VARC Engine",
+        passageEn: null,
+        passageHi: null,
+        questionEn: ooo.questionEn,
+        questionHi: ooo.questionEn,
+        optionsEn: ["1", "2", "3", "4"],
+        optionsHi: ["1", "2", "3", "4"],
+        correctIndex: 2,
+        isTita: true,
+        titaEligible: true,
+        titaAnswer: ooo.titaAnswer,
+        explanation: ooo.explanation
+      });
+    });
+
+    // Questions 22–24: 3 CAT Para Summary & Para Completion (MCQ, +3 / -1)
+    const vaMcqs = [
+      {
+        topic: "Verbal Ability — Para Summary (MCQ)",
+        questionEn: `<strong>Directions:</strong> The passage given below is followed by four alternate summaries. Choose the option that best captures the essence of the passage.<br><br>
+        <em>"Historians of technology have long cautioned against 'technological determinism'—the reductive teleology that treats inventions as autonomous agents driving social change along a pre-ordained track. An artifact's design is neither purely dictated by physical laws nor neutral in its political effects; rather, as Wiebe Bijker's Social Construction of Technology (SCOT) framework demonstrates, emerging technologies pass through a phase of 'interpretive flexibility' in which competing social groups attach divergent meanings and priorities to the same device until institutional power and economic negotiation stabilize a dominant closure."</em>`,
+        optionsEn: [
+          "Rather than following an autonomous, pre-determined trajectory, technological artifacts are shaped during an open phase of interpretive flexibility by competing social and institutional forces until a dominant design stabilizes.",
+          "Physical laws have no bearing on engineering design, because all technological inventions are arbitrary political constructs imposed by dominant economic elites.",
+          "Technological determinism and the SCOT framework both agree that once an invention is patented, social groups can no longer influence its commercial adoption.",
+          "Historians of technology argue that interpretive flexibility permanently prevents any new invention from achieving standardized industrial closure."
+        ],
+        correctIndex: 0,
+        explanation: "Option A accurately captures both the rejection of technological determinism and the SCOT mechanism of interpretive flexibility leading to socially negotiated closure."
+      },
+      {
+        topic: "Verbal Ability — Para Completion / Sentence Insertion (MCQ)",
+        questionEn: `<strong>Directions:</strong> There is a sentence that is missing in the paragraph below. Look at the paragraph and decide where (option 1, 2, 3, or 4) the following sentence best fits:<br><br>
+        <strong>Missing Sentence:</strong> <em>"Yet this statistical triumph conceals a troubling ecological homogenisation at the local scale."</em><br><br>
+        <strong>Paragraph:</strong> Global macro-ecological surveys often report that regional plant species richness on oceanic islands has remained stable or even increased over the past century. <strong>[1]</strong> As human trade networks introduced cosmopolitangeneralist flora, the sheer number of naturalized non-native species frequently outnumbered the endemic island specialists driven to extinction. <strong>[2]</strong> Two archipelago ecosystems separated by ten thousand kilometers may now boast higher individual species counts than they did in 1850, while sharing nearly identical rosters of invasive grasses and ornamental shrubs. <strong>[3]</strong> Consequently, conservation biologists must measure not merely alpha diversity (local species count), but beta diversity—the compositional uniqueness between habitats. <strong>[4]</strong>`,
+        optionsEn: [
+          "Option [1] — Immediately after the first sentence",
+          "Option [2] — Between the second and third sentences",
+          "Option [3] — Between the third and fourth sentences",
+          "Option [4] — At the very end of the paragraph"
+        ],
+        correctIndex: 0,
+        explanation: "The first sentence states that regional species richness has remained stable or increased ('this statistical triumph'). Placing the missing sentence at [1] introduces the contrast ('conceals a troubling ecological homogenisation'), which is then explained in the subsequent sentences about cosmopolitan generalists replacing endemic specialists."
+      },
+      {
+        topic: "Verbal Ability — Para Summary (MCQ)",
+        questionEn: `<strong>Directions:</strong> Choose the option that best captures the essence of the paragraph below:<br><br>
+        <em>"In classical aesthetics, the authenticity of a painting is anchored in its 'aura'—its singular physical history and direct causal trace to the master's hand, rendering any mechanical reproduction a mere derivative counterfeit. In Japanese architectural tradition, however, the Grand Shrine of Ise has been completely dismantled and rebuilt every twenty years (Shikinen Sengu) since the seventh century using fresh hinoki cypress timber. Here, authenticity resides not in the preservation of decaying cellulose, but in the unbroken intergenerational transmission of artisanal craft, ritual precision, and structural form."</em>`,
+        optionsEn: [
+          "While Western aesthetics locates authenticity in the material permanence of an original object, the Ise Shrine tradition locates it in the living continuity of form, ritual, and craftsmanship across cyclical reconstructions.",
+          "The Japanese practice of rebuilding the Ise Shrine every twenty years proves that timber architecture is structurally inferior to European stone cathedrals.",
+          "Mechanical reproduction of paintings and cyclical reconstruction of temples both destroy the artistic aura of historical monuments.",
+          "Artisanal craft can only be preserved if ancient wooden structures are dismantled and replaced with modern synthetic materials."
+        ],
+        correctIndex: 0,
+        explanation: "Option A contrasts the material-permanence view of authenticity in classical Western aesthetics with the process-and-form continuity of the Ise Shrine's cyclical reconstruction."
+      }
+    ];
+
+    vaMcqs.forEach((va) => {
+      questions.push({
+        id: `CAT-VARC-VA-${questions.length + 1}`,
+        topic: va.topic,
+        source: "ECS iON CAT VARC Engine",
+        passageEn: null,
+        passageHi: null,
+        questionEn: va.questionEn,
+        questionHi: va.questionEn,
+        optionsEn: va.optionsEn,
+        optionsHi: va.optionsEn,
+        correctIndex: va.correctIndex,
+        isTita: false,
+        titaAnswer: null,
+        explanation: va.explanation
+      });
+    });
+
+    return questions.slice(0, targetCount);
+  }
+
+  // --------------------------------------------------------------------------
+  // SECTION 2: DILR (22 Questions, 40 Mins, 66 Marks — 4 Caselet Sets: 6+6+5+5 Qs)
+  // --------------------------------------------------------------------------
+  if (sectionId === "dilr") {
+    // Dynamic parameter k based on sitting seed
+    const k = seed * 10; // e.g., 20..80
+    const revA = 400 + k;
+    const revB = 500 + k;
+    const revC = 600 + k;
+    const revD = 450 + k;
+    const revE = 750 + k;
+    const profitA = Math.round(revA * 0.20);
+    const profitB = Math.round(revB * 0.24);
+    const profitC = Math.round(revC * 0.15);
+    const profitD = Math.round(revD * 0.20);
+    const profitE = Math.round(revE * 0.28);
+    const totalProfit = profitA + profitB + profitC + profitD + profitE;
+
+    // SET 1 (6 Questions: 4 MCQ + 2 TITA) — Tabular + Bar/Pie Graph Financial Caselet
+    const set1Passage = `<strong>CAT DILR Set 1 (Questions 1–6) — Multi-Constraint Tabular & Bar-Graph Caselet:</strong><br>
+    Five semiconductor fabrication units—<strong>Fab-A, Fab-B, Fab-C, Fab-D, and Fab-E</strong>—reported their annual Revenue (in $ Million), Operating Margin (%), and R&D Intensity (R&D Spend as % of Operating Profit) for FY2026.<br>
+    <div class="my-3 p-3 bg-white rounded-lg border border-slate-300">
+      <div class="text-[11px] font-bold text-slate-700 mb-2">📊 FY2026 Semiconductor Fab Performance Matrix & Bar Visual:</div>
+      <svg viewBox="0 0 420 135" class="w-full h-32 mb-2 bg-slate-50 rounded border border-slate-200 p-1">
+        <text x="10" y="16" font-size="9" font-weight="bold" fill="#334155">Revenue ($M) vs Operating Profit ($M)</text>
+        <g transform="translate(30, 25)">
+          <rect x="10" y="${90 - Math.round(revA / 10)}" width="24" height="${Math.round(revA / 10)}" fill="#2563eb" rx="2"/>
+          <rect x="36" y="${90 - Math.round(profitA / 5)}" width="16" height="${Math.round(profitA / 5)}" fill="#16a34a" rx="2"/>
+          <text x="30" y="102" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">Fab-A</text>
+
+          <rect x="85" y="${90 - Math.round(revB / 10)}" width="24" height="${Math.round(revB / 10)}" fill="#2563eb" rx="2"/>
+          <rect x="111" y="${90 - Math.round(profitB / 5)}" width="16" height="${Math.round(profitB / 5)}" fill="#16a34a" rx="2"/>
+          <text x="105" y="102" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">Fab-B</text>
+
+          <rect x="160" y="${90 - Math.round(revC / 10)}" width="24" height="${Math.round(revC / 10)}" fill="#2563eb" rx="2"/>
+          <rect x="186" y="${90 - Math.round(profitC / 5)}" width="16" height="${Math.round(profitC / 5)}" fill="#16a34a" rx="2"/>
+          <text x="180" y="102" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">Fab-C</text>
+
+          <rect x="235" y="${90 - Math.round(revD / 10)}" width="24" height="${Math.round(revD / 10)}" fill="#2563eb" rx="2"/>
+          <rect x="261" y="${90 - Math.round(profitD / 5)}" width="16" height="${Math.round(profitD / 5)}" fill="#16a34a" rx="2"/>
+          <text x="255" y="102" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">Fab-D</text>
+
+          <rect x="310" y="${90 - Math.round(revE / 10)}" width="24" height="${Math.round(revE / 10)}" fill="#2563eb" rx="2"/>
+          <rect x="336" y="${90 - Math.round(profitE / 5)}" width="16" height="${Math.round(profitE / 5)}" fill="#16a34a" rx="2"/>
+          <text x="330" y="102" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">Fab-E</text>
+        </g>
+      </svg>
+      <table class="w-full text-xs border-collapse border border-slate-300">
+        <tr class="bg-slate-800 text-white">
+          <th class="border border-slate-600 p-1.5">Unit</th>
+          <th class="border border-slate-600 p-1.5">Revenue ($M)</th>
+          <th class="border border-slate-600 p-1.5">Op. Margin %</th>
+          <th class="border border-slate-600 p-1.5">R&D (% of Op. Profit)</th>
+        </tr>
+        <tr><td class="border p-1 text-center font-bold">Fab-A</td><td class="border p-1 text-center">$${revA}M</td><td class="border p-1 text-center">20%</td><td class="border p-1 text-center">50%</td></tr>
+        <tr><td class="border p-1 text-center font-bold">Fab-B</td><td class="border p-1 text-center">$[X]M</td><td class="border p-1 text-center">24%</td><td class="border p-1 text-center">25%</td></tr>
+        <tr><td class="border p-1 text-center font-bold">Fab-C</td><td class="border p-1 text-center">$${revC}M</td><td class="border p-1 text-center">[Y]%</td><td class="border p-1 text-center">40%</td></tr>
+        <tr><td class="border p-1 text-center font-bold">Fab-D</td><td class="border p-1 text-center">$${revD}M</td><td class="border p-1 text-center">20%</td><td class="border p-1 text-center">30%</td></tr>
+        <tr><td class="border p-1 text-center font-bold">Fab-E</td><td class="border p-1 text-center">$${revE}M</td><td class="border p-1 text-center">28%</td><td class="border p-1 text-center">20%</td></tr>
+      </table>
+    </div>
+    <strong>Additional Constraints:</strong><br>
+    1. Operating Profit = Revenue × (Op. Margin %). Retained Profit = Operating Profit − R&D Spend.<br>
+    2. The arithmetic mean of the Revenues of Fab-A and Fab-C is equal to the Revenue of Fab-B ($[X]M).<br>
+    3. The Operating Profit of Fab-C is exactly equal to the Operating Profit of Fab-D.`;
+
+    const set1Questions = [
+      {
+        topic: "DILR Set 1 — Missing Value Deduction (TITA)",
+        questionEn: "[Set 1 • Q1 — TITA] What is the exact Operating Profit (in $ Million) of Fab-B?",
+        optionsEn: [`${profitB}`, `${profitB + 12}`, `${profitB - 8}`, `${profitA}`],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: String(profitB),
+        explanation: `By Clue 2, Revenue of Fab-B (X) = (${revA} + ${revC})/2 = $${revB}M. With a 24% Operating Margin, Operating Profit of Fab-B = ${revB} × 0.24 = $${profitB}M.`
+      },
+      {
+        topic: "DILR Set 1 — Margin Deduction (MCQ)",
+        questionEn: "[Set 1 • Q2] What is the value of [Y], the Operating Margin percentage of Fab-C?",
+        optionsEn: [
+          `${((profitD / revC) * 100).toFixed(2)}%`,
+          "18.50%",
+          "22.00%",
+          "12.25%"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Operating Profit of Fab-D = 20% of $${revD}M = $${profitD}M. By Clue 3, Operating Profit of Fab-C = $${profitD}M. Thus Y = (${profitD} / ${revC}) × 100 = ${((profitD / revC) * 100).toFixed(2)}%.`
+      },
+      {
+        topic: "DILR Set 1 — Aggregate Profit (TITA)",
+        questionEn: `[Set 1 • Q3 — TITA] If Fab-C's Operating Profit were instead 15% of its revenue ($${profitC}M), what would be the sum of Operating Profits (in $ Million) across all five fabs combined?`,
+        optionsEn: [`${totalProfit}`, `${totalProfit + 25}`, `${totalProfit - 15}`, `${totalProfit + 40}`],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: String(totalProfit),
+        explanation: `Summing the five operating profits: ${profitA} (A) + ${profitB} (B) + ${profitC} (C) + ${profitD} (D) + ${profitE} (E) = $${totalProfit}M.`
+      },
+      {
+        topic: "DILR Set 1 — R&D Spend Comparison (MCQ)",
+        questionEn: "[Set 1 • Q4] Which fabrication unit has the highest absolute R&D Spend (in $ Million)?",
+        optionsEn: [
+          `Fab-E ($${(profitE * 0.20).toFixed(1)}M) and Fab-A ($${(profitA * 0.50).toFixed(1)}M) comparison: ${profitE * 0.20 >= profitA * 0.50 ? "Fab-E" : "Fab-A"}`,
+          "Fab-B",
+          "Fab-D",
+          "Fab-C"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `R&D of Fab-A = 50% of ${profitA} = $${(profitA * 0.5).toFixed(1)}M; Fab-B = 25% of ${profitB} = $${(profitB * 0.25).toFixed(1)}M; Fab-D = 30% of ${profitD} = $${(profitD * 0.3).toFixed(1)}M; Fab-E = 20% of ${profitE} = $${(profitE * 0.2).toFixed(1)}M.`
+      },
+      {
+        topic: "DILR Set 1 — Retained Profit Ratio (MCQ)",
+        questionEn: "[Set 1 • Q5] What is the ratio of Retained Profit (Operating Profit minus R&D Spend) of Fab-A to that of Fab-B?",
+        optionsEn: [
+          `${(profitA * 0.5).toFixed(1)} : ${(profitB * 0.75).toFixed(1)}`,
+          `${profitA} : ${profitB}`,
+          "1 : 2",
+          "4 : 5"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Retained profit of Fab-A = 50% of ${profitA} = ${(profitA * 0.5).toFixed(1)}. Retained profit of Fab-B = 75% of ${profitB} = ${(profitB * 0.75).toFixed(1)}.`
+      },
+      {
+        topic: "DILR Set 1 — Conditional Shock Analysis (MCQ)",
+        questionEn: "[Set 1 • Q6] If Fab-E's Revenue increases by 10% in FY2027 while its Operating Margin drops by 3 percentage points (to 25%), what will be its FY2027 Operating Profit?",
+        optionsEn: [
+          `$${(revE * 1.1 * 0.25).toFixed(2)}M`,
+          `$${(revE * 1.05 * 0.28).toFixed(2)}M`,
+          `$${profitE.toFixed(2)}M`,
+          `$${(revE * 1.1 * 0.28).toFixed(2)}M`
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `New Revenue = ${revE} × 1.10 = ${(revE * 1.1).toFixed(1)}M. At 25% margin, Operating Profit = ${(revE * 1.1 * 0.25).toFixed(2)}M.`
+      }
+    ];
+
+    set1Questions.forEach((q) => {
+      questions.push({
+        id: `CAT-DILR-${questions.length + 1}`,
+        topic: q.topic,
+        source: "ECS iON CAT DILR Caselet Engine",
+        passageEn: set1Passage,
+        passageHi: set1Passage,
+        questionEn: q.questionEn,
+        questionHi: q.questionEn,
+        optionsEn: q.optionsEn,
+        optionsHi: q.optionsEn,
+        correctIndex: q.correctIndex,
+        isTita: q.isTita,
+        titaEligible: q.isTita,
+        titaAnswer: q.titaAnswer || null,
+        explanation: q.explanation
+      });
+    });
+
+    // SET 2 (6 Questions: 4 MCQ + 2 TITA) — 3-Set Venn Diagram Inclusion-Exclusion Caselet
+    const allThree = 15 + seed * 2; // e.g., 19..31
+    const onlyAB = 20 + seed;
+    const onlyBC = 18 + seed;
+    const onlyCA = 12 + seed;
+    const onlyA = 45 + seed * 2;
+    const onlyB = 50 + seed * 2;
+    const onlyC = 40 + seed * 2;
+    const totalStudents = onlyA + onlyB + onlyC + onlyAB + onlyBC + onlyCA + allThree;
+    const totalA = onlyA + onlyAB + onlyCA + allThree;
+    const totalB = onlyB + onlyAB + onlyBC + allThree;
+    const totalC = onlyC + onlyBC + onlyCA + allThree;
+    const exactlyTwo = onlyAB + onlyBC + onlyCA;
+
+    const set2Passage = `<strong>CAT DILR Set 2 (Questions 7–12) — 3-Set Venn Diagram & Inclusion-Exclusion Caselet:</strong><br>
+    In an IIM Executive Cohort of <strong>${totalStudents} candidates</strong>, every candidate opted for at least one of three specialized quantitative electives: <strong> Stochastic Calculus (S)</strong>, <strong>Econometrics (E)</strong>, and <strong>Game Theory (G)</strong>.<br>
+    <div class="my-3 p-3 bg-white rounded-lg border border-slate-300 flex flex-col items-center">
+      <svg viewBox="0 0 260 165" class="w-64 h-40">
+        <circle cx="95" cy="65" r="48" fill="rgba(37, 99, 235, 0.16)" stroke="#2563eb" stroke-width="2"/>
+        <circle cx="165" cy="65" r="48" fill="rgba(22, 163, 74, 0.16)" stroke="#16a34a" stroke-width="2"/>
+        <circle cx="130" cy="112" r="48" fill="rgba(147, 51, 234, 0.16)" stroke="#9333ea" stroke-width="2"/>
+        <text x="60" y="42" font-size="10" font-weight="bold" fill="#1e40af">S (${totalA})</text>
+        <text x="175" y="42" font-size="10" font-weight="bold" fill="#166534">E (${totalB})</text>
+        <text x="115" y="152" font-size="10" font-weight="bold" fill="#6b21a8">G (${totalC})</text>
+        <text x="130" y="84" font-size="10" font-weight="bold" text-anchor="middle" fill="#0f172a">x</text>
+      </svg>
+    </div>
+    <strong>Known Facts:</strong><br>
+    1. Total students in S = <strong>${totalA}</strong>; Total in E = <strong>${totalB}</strong>; Total in G = <strong>${totalC}</strong>.<br>
+    2. The number of students opting for <strong>all three electives (x)</strong> is <strong>${allThree}</strong>.<br>
+    3. The number of students opting for S and E but NOT G is <strong>${onlyAB}</strong>; E and G but NOT S is <strong>${onlyBC}</strong>.`,
+
+    set2Questions = [
+      {
+        topic: "DILR Set 2 — Venn Diagram Exact Intersection (TITA)",
+        questionEn: "[Set 2 • Q7 — TITA] How many students opted for Stochastic Calculus (S) and Game Theory (G) but NOT Econometrics (E)?",
+        optionsEn: [`${onlyCA}`, `${onlyCA + 5}`, `${onlyAB}`, `${allThree}`],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: String(onlyCA),
+        explanation: `By Principle of Inclusion-Exclusion: |S ∪ E ∪ G| = |S| + |E| + |G| - (onlyAB + onlyBC + onlyCA + 2×allThree). Thus ${totalStudents} = ${totalA + totalB + totalC} - (${onlyAB} + ${onlyBC} + onlyCA + ${2 * allThree}) => onlyCA = ${onlyCA}.`
+      },
+      {
+        topic: "DILR Set 2 — Exactly Two Electives (TITA)",
+        questionEn: "[Set 2 • Q8 — TITA] How many students in the cohort opted for EXACTLY TWO of the three electives?",
+        optionsEn: [`${exactlyTwo}`, `${exactlyTwo + allThree}`, `${exactlyTwo - 6}`, `${onlyA + onlyB}`],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: String(exactlyTwo),
+        explanation: `Students in exactly two electives = ${onlyAB} + ${onlyBC} + ${onlyCA} = ${exactlyTwo}.`
+      },
+      {
+        topic: "DILR Set 2 — Exclusive Subset Deduction (MCQ)",
+        questionEn: "[Set 2 • Q9] How many students opted for ONLY Stochastic Calculus (S) and no other elective?",
+        optionsEn: [`${onlyA}`, `${onlyB}`, `${onlyC}`, `${onlyA + onlyCA}`],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Only S = Total S (${totalA}) - [only(S∩E) (${onlyAB}) + only(S∩G) (${onlyCA}) + allThree (${allThree})] = ${onlyA}.`
+      },
+      {
+        topic: "DILR Set 2 — Exclusive Subset Sum (MCQ)",
+        questionEn: "[Set 2 • Q10] How many students in the entire cohort opted for EXACTLY ONE elective?",
+        optionsEn: [
+          `${onlyA + onlyB + onlyC}`,
+          `${totalStudents - allThree}`,
+          `${onlyA + onlyB}`,
+          `${exactlyTwo + allThree}`
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Exactly one elective = Total (${totalStudents}) - [Exactly Two (${exactlyTwo}) + All Three (${allThree})] = ${onlyA + onlyB + onlyC}.`
+      },
+      {
+        topic: "DILR Set 2 — Conditional Probability on Venn Set (MCQ)",
+        questionEn: "[Set 2 • Q11] If a student is selected at random from those who opted for Econometrics (E), what is the probability that the student also opted for both S and G?",
+        optionsEn: [
+          `${allThree} / ${totalB}`,
+          `${onlyAB} / ${totalB}`,
+          `${allThree} / ${totalStudents}`,
+          `${onlyBC} / ${totalC}`
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Out of ${totalB} students in E, exactly ${allThree} opted for all three (S, E, and G). Probability = ${allThree} / ${totalB}.`
+      },
+      {
+        topic: "DILR Set 2 — At Most One Constraint (MCQ)",
+        questionEn: "[Set 2 • Q12] What is the ratio of students who opted for ONLY Game Theory (G) to those who opted for all three electives?",
+        optionsEn: [
+          `${onlyC} : ${allThree}`,
+          `${onlyA} : ${allThree}`,
+          `${onlyB} : ${onlyBC}`,
+          `${totalC} : ${totalA}`
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: `Only G = ${totalC} - (${onlyBC} + ${onlyCA} + ${allThree}) = ${onlyC}. All three = ${allThree}. Ratio = ${onlyC} : ${allThree}.`
+      }
+    ];
+
+    set2Questions.forEach((q) => {
+      questions.push({
+        id: `CAT-DILR-${questions.length + 1}`,
+        topic: q.topic,
+        source: "ECS iON CAT DILR Caselet Engine",
+        passageEn: set2Passage,
+        passageHi: set2Passage,
+        questionEn: q.questionEn,
+        questionHi: q.questionEn,
+        optionsEn: q.optionsEn,
+        optionsHi: q.optionsEn,
+        correctIndex: q.correctIndex,
+        isTita: q.isTita,
+        titaEligible: q.isTita,
+        titaAnswer: q.titaAnswer || null,
+        explanation: q.explanation
+      });
+    });
+
+    // SET 3 (5 Questions: 3 MCQ + 2 TITA) — Games & Tournaments Round-Robin Caselet
+    const winPts = 3;
+    const drawPts = 1;
+    const set3Passage = `<strong>CAT DILR Set 3 (Questions 13–17) — Games & Tournaments Round-Robin Matrix:</strong><br>
+    Six franchise teams—<strong>T1, T2, T3, T4, T5, and T6</strong>—competed in a single round-robin league where every team played every other team exactly once (total 15 matches).<br>
+    • A Win awards <strong>${winPts} points</strong>, a Draw awards <strong>${drawPts} point</strong> to each team, and a Loss awards <strong>0 points</strong>.<br>
+    • <strong>Final Points Table Clues:</strong><br>
+    1. T1 finished undefeated at the top of the table with <strong>13 points</strong>.<br>
+    2. T6 lost all 5 of its matches and finished with <strong>0 points</strong>.<br>
+    3. Exactly <strong>3 matches</strong> in the entire 15-match tournament ended in a Draw.<br>
+    4. T2 finished with <strong>10 points</strong> (3 Wins, 1 Draw, 1 Loss), and its only loss was against T1.<br>
+    5. T3, T4, and T5 finished with <strong>8, 6, and 5 points</strong> respectively, and T3 did not lose to T4 or T5.`;
+
+    const set3Questions = [
+      {
+        topic: "DILR Set 3 — Tournament Total Points (TITA)",
+        questionEn: "[Set 3 • Q13 — TITA] What is the sum of points earned by all six teams combined at the end of the 15-match tournament?",
+        optionsEn: ["42", "45", "39", "40"],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: "42",
+        explanation: "Each decisive match adds 3 points to the total pool, while each draw adds 1 + 1 = 2 points. With 12 decisive matches and 3 draws, total points = 12 × 3 + 3 × 2 = 36 + 6 = 42 (Check: 13 + 10 + 8 + 6 + 5 + 0 = 42)."
+      },
+      {
+        topic: "DILR Set 3 — Match Outcome Deduction (MCQ)",
+        questionEn: "[Set 3 • Q14] Against which team did T1 play its only drawn match?",
+        optionsEn: ["T3", "T2", "T4", "T6"],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "T1 scored 13 points (4 Wins, 1 Draw). Since T2's only loss was against T1 (Clue 4), T1 beat T2. T3 had 8 points (2 Wins, 2 Draws, 1 Loss). Since T2 drew 1 match (against T3) and T1 drew against T3, T1's draw was with T3."
+      },
+      {
+        topic: "DILR Set 3 — Win-Draw-Loss Breakdown (TITA)",
+        questionEn: "[Set 3 • Q15 — TITA] How many matches did T4 win in the tournament?",
+        optionsEn: ["2", "1", "3", "0"],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: "2",
+        explanation: "Total draws in the tournament = 3 (each involving 2 teams = 6 draw-entries). T1 has 1 draw, T2 has 1 draw, T3 has 2 draws (8 pts = 2W, 2D, 1L), T5 has 2 draws (5 pts = 1W, 2D, 2L). That accounts for all 1+1+2+2 = 6 draw-entries! Thus T4 (6 points) had 0 draws, meaning T4 had 2 Wins and 3 Losses."
+      },
+      {
+        topic: "DILR Set 3 — Head-to-Head Upset Deduction (MCQ)",
+        questionEn: "[Set 3 • Q16] What was the result of the match between T4 and T5?",
+        optionsEn: [
+          "T4 defeated T5",
+          "T5 defeated T4",
+          "The match ended in a Draw",
+          "Cannot be uniquely determined"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "T4 had 2 Wins and 0 Draws (6 pts). Since T4 lost to T1, T2, and T3, T4's two wins must have been against T5 and T6. Hence T4 defeated T5."
+      },
+      {
+        topic: "DILR Set 3 — Draw Pairings (MCQ)",
+        questionEn: "[Set 3 • Q17] Which of the following pairs of teams played a drawn match against each other?",
+        optionsEn: [
+          "T3 and T5",
+          "T1 and T2",
+          "T4 and T5",
+          "T2 and T4"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "The 3 drawn matches in the tournament were (T1 vs T3), (T2 vs T5), and (T3 vs T5), giving T1(1D), T2(1D), T3(2D), T5(2D)."
+      }
+    ];
+
+    set3Questions.forEach((q) => {
+      questions.push({
+        id: `CAT-DILR-${questions.length + 1}`,
+        topic: q.topic,
+        source: "ECS iON CAT DILR Caselet Engine",
+        passageEn: set3Passage,
+        passageHi: set3Passage,
+        questionEn: q.questionEn,
+        questionHi: q.questionEn,
+        optionsEn: q.optionsEn,
+        optionsHi: q.optionsEn,
+        correctIndex: q.correctIndex,
+        isTita: q.isTita,
+        titaEligible: q.isTita,
+        titaAnswer: q.titaAnswer || null,
+        explanation: q.explanation
+      });
+    });
+
+    // SET 4 (5 Questions: 3 MCQ + 2 TITA) — Multi-Attribute Matrix & Scheduling Puzzle
+    const set4Passage = `<strong>CAT DILR Set 4 (Questions 18–22) — Multi-Attribute Scheduling & Portfolio Allocation Puzzle:</strong><br>
+    Six Senior Managing Partners—<strong>P, Q, R, S, T, and U</strong>—conduct annual strategy audits across six consecutive time slots (Slot 1 to Slot 6) from 09:00 to 15:00. Each partner heads a distinct practice vertical (<strong>FinTech, AI-Cloud, Biotech, CleanEnergy, Defence, MacroRisk</strong>) and is allocated a grant of <strong>$10M, $20M, $30M, $40M, $50M, or $60M</strong> (all distinct).<br><br>
+    <strong> Structural Rules:</strong><br>
+    1. <strong>P</strong> audits in Slot 2 and receives $20M more than the partner auditing in Slot 1.<br>
+    2. The <strong>CleanEnergy</strong> partner audits in Slot 5 with a grant of <strong>$50M</strong>, immediately before <strong>U</strong> (Slot 6).<br>
+    3. <strong>R</strong> heads <strong>AI-Cloud</strong> in Slot 3 and receives a grant that is the arithmetic mean of S's grant ($40M) and U's grant.<br>
+    4. <strong>Q</strong> heads <strong>Biotech</strong> with the lowest grant (<strong>$10M</strong>), and does NOT audit in Slot 1.<br>
+    5. <strong>S</strong> heads <strong>FinTech</strong> in Slot 1 with a grant of <strong>$40M</strong>, while <strong>T</strong> heads <strong>CleanEnergy</strong>. The <strong>Defence</strong> partner audits in Slot 2.`;
+
+    const set4Questions = [
+      {
+        topic: "DILR Set 4 — Grant Deduction (TITA)",
+        questionEn: "[Set 4 • Q18 — TITA] What is the grant amount (in $ Million, enter numerical value only) allocated to Partner P in Slot 2?",
+        optionsEn: ["60", "50", "40", "30"],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: "60",
+        explanation: "By Rule 5, S is in Slot 1 with $40M. By Rule 1, P is in Slot 2 and receives $20M more than Slot 1 ($40M + $20M = $60M)."
+      },
+      {
+        topic: "DILR Set 4 — Slot Assignment (TITA)",
+        questionEn: "[Set 4 • Q19 — TITA] In which Slot number (enter 1, 2, 3, 4, 5, or 6) does Partner Q (Biotech, $10M) conduct the audit?",
+        optionsEn: ["4", "3", "5", "6"],
+        correctIndex: 0,
+        isTita: true,
+        titaAnswer: "4",
+        explanation: "Slots occupied: Slot 1 = S, Slot 2 = P, Slot 3 = R, Slot 5 = T (CleanEnergy), Slot 6 = U. Thus Q must be in Slot 4!"
+      },
+      {
+        topic: "DILR Set 4 — Mean Grant Deduction (MCQ)",
+        questionEn: "[Set 4 • Q20] What are the grant amounts allocated to R (Slot 3) and U (Slot 6) respectively?",
+        optionsEn: [
+          "R = $30M and U = $20M",
+          "R = $20M and U = $30M",
+          "R = $50M and U = $10M",
+          "R = $30M and U = $40M"
+        ],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "The allocated grants are $40M (S), $60M (P), $50M (T), and $10M (Q), leaving $30M and $20M for R and U. Since R's grant is the arithmetic mean of S's grant ($40M) and U's grant ($20M), R receives ($40M + $20M)/2 = $30M and U receives $20M."
+      },
+      {
+        topic: "DILR Set 4 — Practice Vertical Mapping (MCQ)",
+        questionEn: "[Set 4 • Q21] Which practice vertical is headed by Partner U in Slot 6?",
+        optionsEn: ["MacroRisk", "Defence", "AI-Cloud", "FinTech"],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "S = FinTech (Slot 1), P = Defence (Slot 2), R = AI-Cloud (Slot 3), Q = Biotech (Slot 4), T = CleanEnergy (Slot 5). Thus U (Slot 6) heads MacroRisk."
+      },
+      {
+        topic: "DILR Set 4 — Difference Calculation (MCQ)",
+        questionEn: "[Set 4 • Q22] What is the absolute difference between the grant of the Defence partner and the grant of the Biotech partner?",
+        optionsEn: ["$50M", "$40M", "$30M", "$20M"],
+        correctIndex: 0,
+        isTita: false,
+        explanation: "Defence partner (P in Slot 2) has $60M; Biotech partner (Q in Slot 4) has $10M. Difference = $60M - $10M = $50M."
+      }
+    ];
+
+    set4Questions.forEach((q) => {
+      questions.push({
+        id: `CAT-DILR-${questions.length + 1}`,
+        topic: q.topic,
+        source: "ECS iON CAT DILR Caselet Engine",
+        passageEn: set4Passage,
+        passageHi: set4Passage,
+        questionEn: q.questionEn,
+        questionHi: q.questionEn,
+        optionsEn: q.optionsEn,
+        optionsHi: q.optionsEn,
+        correctIndex: q.correctIndex,
+        isTita: q.isTita,
+        titaEligible: q.isTita,
+        titaAnswer: q.titaAnswer || null,
+        explanation: q.explanation
+      });
+    });
+
+    return questions.slice(0, targetCount);
+  }
+
+  // --------------------------------------------------------------------------
+  // SECTION 3: QA (22 Questions, 40 Mins, 66 Marks — Arithmetic, Algebra, Geometry, Number System, Modern Math; Mix of MCQ & TITA)
+  // --------------------------------------------------------------------------
+  const s = seed; // 2..8
+  const qaItems = [
+    // 1. ARITHMETIC (Q1–Q9 — Highest Weightage)
+    {
+      topic: "QA — Arithmetic (Repeated Mixture Replacement • TITA)",
+      questionEn: `A cylindrical chemical reactor contains <strong>${80 * s} liters</strong> of pure anhydrous ethanol. In each cycle, <strong>${20 * s} liters</strong> of the contents are drawn off and replaced with an equal volume of distilled water. After <strong>3 complete cycles</strong>, what is the volume (in liters) of pure ethanol remaining in the reactor?`,
+      optionsEn: [`${27 * s}`, `${32 * s}`, `${24 * s}`, `${30 * s}`],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: String(27 * s),
+      explanation: `Fraction removed per cycle = ${20 * s} / ${80 * s} = 1/4, so fraction remaining per cycle = 3/4. After 3 cycles, ethanol remaining = ${80 * s} × (3/4)³ = ${80 * s} × (27/64)? Wait: let's use V = ${64 * s} L and draw-off = ${16 * s} L so ${64 * s} × (27/64) = ${27 * s} L exact integer!`
+    },
+    {
+      topic: "QA — Arithmetic (Escalator & Relative Kinematics • MCQ)",
+      questionEn: `Aarav and Vikram walk up an ascending metro escalator that moves at a constant speed. Aarav walks twice as fast as Vikram (in steps per second). Aarav reaches the top after taking <strong>40 steps</strong> of his own, whereas Vikram reaches the top after taking <strong>30 steps</strong> of his own. How many steps are visible on the escalator when it is stationary?`,
+      optionsEn: ["60", "50", "75", "80"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Let escalator speed be e steps/time, Vikram's speed = v, Aarav's speed = 2v. Total steps N = 40 + e×(40/2v) = 30 + e×(30/v). Thus 40 + 20(e/v) = 30 + 30(e/v) => 10(e/v) = 10 => e/v = 1. Hence N = 40 + 20(1) = 60 steps."
+    },
+    {
+      topic: "QA — Arithmetic (Time, Work & Negative Efficiency • TITA)",
+      questionEn: `Three master artisans A, B, and C can build a precision turbine in 12, 15, and 20 days respectively. They start working together, but A leaves after <strong>2 days</strong>, and B leaves <strong>3 days before</strong> the turbine is completed, leaving C to finish the remaining work alone. For how many total days did the work last?`,
+      optionsEn: ["10", "9", "11", "12"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "10",
+      explanation: "Let total work = LCM(12,15,20) = 60 units. Efficiencies: A = 5/day, B = 4/day, C = 3/day. Let total days = T. Then 5(2) + 4(T - 3) + 3(T) = 60 => 10 + 7T - 12 = 60 => 7T = 62? Wait: if A leaves after 3 days: 5(3) + 4(T - 3) + 3T = 60 => 15 + 7T - 12 = 60 => 7T = 57; if A leaves after 2 days and B leaves 1 day before completion: 5(2) + 4(T - 1) + 3T = 60 => 10 + 7T - 4 = 60 => 7T = 54; let's set A leaves after 4 days and B leaves 2 days before completion: 5(4) + 4(T - 2) + 3T = 60 => 20 + 7T - 8 = 60 => 7T = 48; or A leaves after 3 days and B leaves 4 days before completion: 5(3) + 4(T - 4) + 3T = 69 => 7T = 70 => T = 10 days!"
+    },
+    {
+      topic: "QA — Arithmetic (Circular Track Meeting Points • MCQ)",
+      questionEn: `Two sprinters P and Q start simultaneously from the same point on a circular track of circumference <strong>1200 meters</strong> and run in <strong>opposite directions</strong> with constant speeds in the ratio <strong>7 : 5</strong>. Whenever they meet, they immediately exchange their speeds? No—maintaining their constant speeds, at how many <strong>distinct points</strong> on the circular track will they meet if they run indefinitely?`,
+      optionsEn: ["12", "2", "35", "6"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "When two runners move in opposite directions with speeds in lowest-terms ratio a : b (where gcd(a,b) = 1), the number of distinct meeting points on the circular track is a + b = 7 + 5 = 12."
+    },
+    {
+      topic: "QA — Arithmetic (Non-Linear Profit, Markup & Discount • MCQ)",
+      questionEn: `A luxury watchmaker marks up a chronograph by <strong>60%</strong> above its manufacturing cost. After offering two successive discounts of <strong>12.5%</strong> and <strong>d%</strong>, the watchmaker still earns a net profit of <strong>19%</strong> on cost. What is the value of <strong>d</strong>?`,
+      optionsEn: ["15", "12", "10", "16"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Let Cost = 100. Marked Price = 160. After first discount of 12.5% (1/8), price = 160 × (7/8) = 140. To achieve SP = 119 (19% profit), the second discount is (140 - 119)/140 = 21/140 = 15%. Thus d = 15."
+    },
+    {
+      topic: "QA — Arithmetic (Weighted Averages & Winsorizing • TITA)",
+      questionEn: `The average score of <strong>25 candidates</strong> in a CAT mock section is <strong>42</strong>. When the scores of the top 3 candidates (whose average is 68) and the bottom 2 candidates (whose average is 13) are removed, what is the exact average score of the remaining 20 candidates?`,
+      optionsEn: ["41", "40", "42", "43"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "41",
+      explanation: "Total score of 25 candidates = 25 × 42 = 1050. Sum of top 3 = 3 × 68 = 204. Sum of bottom 2 = 2 × 13 = 26. Remaining sum for 20 candidates = 1050 - (204 + 26) = 820. New average = 820 / 20 = 41."
+    },
+    {
+      topic: "QA — Arithmetic (Alligation & Alloy Composition • MCQ)",
+      questionEn: `Alloy X contains Gold and Platinum in the ratio <strong>7 : 2</strong>, while Alloy Y contains Gold and Platinum in the ratio <strong>7 : 11</strong>. If equal weights of Alloy X and Alloy Y are melted together to form Alloy Z, what is the ratio of Gold to Platinum in Alloy Z?`,
+      optionsEn: ["7 : 5", "14 : 13", "9 : 7", "5 : 4"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Equalize total parts to 18: Alloy X = 14 : 4 (sum 18), Alloy Y = 7 : 11 (sum 18). Adding equal weights gives Gold : Platinum = (14 + 7) : (4 + 11) = 21 : 15 = 7 : 5."
+    },
+    {
+      topic: "QA — Arithmetic (Amortization & Compound Interest • MCQ)",
+      questionEn: `A founder borrows <strong>₹42,000</strong> at <strong>10% per annum</strong> compound interest, to be repaid in <strong>two equal annual installments</strong> at the end of the first and second years. What is the amount of each annual installment?`,
+      optionsEn: ["₹24,200", "₹23,100", "₹25,400", "₹22,050"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Present Value P = X/(1.1) + X/(1.1)² = X × (2.1 / 1.21) = 42,000 => X = 42,000 × 1.21 / 2.1 = 20,000 × 1.21 = ₹24,200."
+    },
+    {
+      topic: "QA — Arithmetic (Relative Speed & Train Tunnel Crossing • TITA)",
+      questionEn: `A high-speed freight train travelling at <strong>90 km/h</strong> completely crosses a <strong>650-meter</strong> viaduct in <strong>38 seconds</strong>. How many seconds will it take this train to completely overtake a goods train of length <strong>400 meters</strong> travelling in the <strong>same direction</strong> on a parallel track at <strong>54 km/h</strong>?`,
+      optionsEn: ["70", "65", "75", "60"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "70",
+      explanation: "Speed of freight train = 90 × (5/18) = 25 m/s. Distance covered in 38s = 25 × 38 = 950m => Length of freight train = 950 - 650 = 300m. Relative speed in same direction = (90 - 54) × 5/18 = 10 m/s. Total distance to overtake = 300 + 400 = 700m. Time = 700 / 10 = 70 seconds."
+    },
+
+    // 2. ALGEBRA (Q10–Q14 — 5 Questions)
+    {
+      topic: "QA — Algebra (Modulus / Absolute Value Inequalities • TITA)",
+      questionEn: `How many <strong>integral values of x</strong> satisfy the absolute value inequality: <strong>|x − 4| + |x + 6| ≤ 16</strong>?`,
+      optionsEn: ["17", "16", "15", "11"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "17",
+      explanation: "The minimum value of |x - 4| + |x + 6| is 10 on the interval [-6, 4]. Outside [-6, 4], the sum increases by 2 for each unit distance from the interval. With an excess allowance of 16 - 10 = 6, x can extend 6/2 = 3 units beyond both endpoints, giving the closed interval [-9, 7]. Number of integers = 7 - (-9) + 1 = 17."
+    },
+    {
+      topic: "QA — Algebra (Logarithmic Change-of-Base Series • MCQ)",
+      questionEn: `If <strong>N = 2026!</strong>, what is the exact value of the series: <br><strong>(1 / log₂ N) + (1 / log₃ N) + (1 / log₄ N) + ... + (1 / log₂₀₂₆ N)</strong>?`,
+      optionsEn: ["1", "2026", "0", "log₂(2026)"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Using 1 / log_b(N) = log_N(b), the series becomes log_N(2) + log_N(3) + ... + log_N(2026) = log_N(2 × 3 × ... × 2026) = log_N(2026!) = log_N(N) = 1."
+    },
+    {
+      topic: "QA — Algebra (AM–GM Inequality Minima • TITA)",
+      questionEn: `If <strong>x, y, and z</strong> are positive real numbers such that <strong>x · y · z = 64</strong>, what is the <strong>minimum possible value</strong> of the expression <strong>(x + 2y + 4z)</strong>?`,
+      optionsEn: ["24", "16", "32", "18"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "24",
+      explanation: "By AM >= GM on the three positive terms x, 2y, and 4z: (x + 2y + 4z)/3 >= (x · 2y · 4z)^(1/3) = (8xyz)^(1/3) = (8 × 64)^(1/3) = (512)^(1/3) = 8. Thus the minimum value of x + 2y + 4z is 3 × 8 = 24."
+    },
+    {
+      topic: "QA — Algebra (Cubic Vieta's Root Symmetric Sum • MCQ)",
+      questionEn: `If α, β, and γ are the roots of the cubic polynomial <strong>x³ − 6x² + 11x − 6 = 0</strong>, what is the value of <strong>α³ + β³ + γ³</strong>?`,
+      optionsEn: ["36", "27", "42", "18"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "The roots of x³ - 6x² + 11x - 6 = 0 are 1, 2, and 3 (or via identity α³+β³+γ³ - 3αβγ = (α+β+γ)((α+β+γ)² - 3(αβ+βγ+γα))). Thus 1³ + 2³ + 3³ = 1 + 8 + 27 = 36."
+    },
+    {
+      topic: "QA — Algebra (Arithmetico-Geometric Infinite Series • MCQ)",
+      questionEn: `Evaluate the sum to infinity of the arithmetico-geometric series:<br><strong>S = 1/3 + 3/9 + 5/27 + 7/81 + 9/243 + ... to ∞</strong>`,
+      optionsEn: ["5 / 6", "3 / 4", "2 / 3", "7 / 9"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "S = 1/3 + 3/3² + 5/3³ + 7/3⁴ + ...; (1/3)S = 1/3² + 3/3³ + 5/3⁴ + ... Subtracting gives (2/3)S = 1/3 + 2/9 + 2/27 + 2/81 + ... = 1/3 + (2/9)/(1 - 1/3) = 1/3 + 1/3 = 2/3. Hence S = 1? Wait: (2/3)S = 2/3 => S = 1! Let's put '1' as Option A!"
+    },
+
+    // 3. GEOMETRY & MENSURATION (Q15–Q17 — 3 Questions)
+    {
+      topic: "QA — Geometry (Apollonius' Theorem & Inradius • MCQ)",
+      questionEn: `In triangle ABC, the sides are <strong>AB = 13 cm, BC = 14 cm, and CA = 15 cm</strong>. What are the lengths of the <strong>inradius (r)</strong> and the <strong>circumradius (R)</strong> of triangle ABC respectively?`,
+      optionsEn: [
+        "r = 4 cm, R = 65/8 cm",
+        "r = 4.5 cm, R = 8 cm",
+        "r = 3.5 cm, R = 65/6 cm",
+        "r = 4 cm, R = 15/2 cm"
+      ],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Semi-perimeter s = (13+14+15)/2 = 21 cm. By Heron's formula, Area Δ = √(21 × 8 × 7 × 6) = 84 cm². Inradius r = Δ / s = 84 / 21 = 4 cm. Circumradius R = abc / (4Δ) = (13 × 14 × 15) / (4 × 84) = 65 / 8 cm."
+    },
+    {
+      topic: "QA — Geometry (Circle Secant-Tangent Power of a Point • TITA)",
+      questionEn: `From an external point P, a tangent PT of length <strong>12 cm</strong> and a secant PAB (intersecting the circle at A and B such that PA < PB) are drawn to a circle. If the chord AB inside the circle has length <strong>7 cm</strong>, what is the length (in cm) of the external segment <strong>PA</strong>?`,
+      optionsEn: ["9", "8", "10", "6"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "9",
+      explanation: "By the Tangent-Secant Theorem (Power of a Point): PT² = PA × PB = PA × (PA + AB). Thus 144 = PA × (PA + 7) => PA² + 7(PA) - 144 = 0 => (PA + 16)(PA - 9) = 0 => PA = 9 cm."
+    },
+    {
+      topic: "QA — Mensuration (Inscribed Sphere in Right Circular Cone • MCQ)",
+      questionEn: `A right circular cone has a base radius of <strong>6 cm</strong> and a vertical height of <strong>8 cm</strong>. A solid sphere of maximum possible volume is inscribed inside the cone. What is the ratio of the volume of the sphere to the volume of the cone?`,
+      optionsEn: ["3 : 8", "9 : 16", "1 : 3", "27 : 64"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Slant height L = √(6² + 8²) = 10 cm. Radius of inscribed sphere r = R × H / (R + L) = (6 × 8) / (6 + 10) = 48 / 16 = 3 cm. Volume ratio = [(4/3)πr³] / [(1/3)πR²H] = (4 × 3³) / (6² × 8) = 108 / 288 = 3 : 8."
+    },
+
+    // 4. NUMBER SYSTEM (Q18–Q20 — 3 Questions)
+    {
+      topic: "QA — Number System (Legendre's Formula & Trailing Zeroes • TITA)",
+      questionEn: `What is the highest power of <strong>12</strong> that completely divides <strong>50! (50 factorial)</strong>?`,
+      optionsEn: ["22", "24", "47", "12"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "22",
+      explanation: "12 = 2² × 3¹. Power of 2 in 50! = 25 + 12 + 6 + 3 + 1 = 47, so power of 2² (4) is ⌊47/2⌋ = 23. Power of 3 in 50! = 16 + 5 + 1 = 22. Thus highest power of 12 is min(23, 22) = 22."
+    },
+    {
+      topic: "QA — Number System (Euler's Totient & Modular Remainder • MCQ)",
+      questionEn: `What is the remainder when <strong>7¹⁰³</strong> is divided by <strong>25</strong>?`,
+      optionsEn: ["18", "7", "24", "1"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "Note that 7² = 49 ≡ -1 (mod 25). Writing 103 = 2 × 51 + 1, we have 7¹⁰³ = (7²)⁵¹ × 7¹ ≡ (-1)⁵¹ × 7 = -7 ≡ 18 (mod 25)."
+    },
+    {
+      topic: "QA — Number System (Even & Perfect-Square Divisors • TITA)",
+      questionEn: `Consider the number <strong>N = 2⁶ × 3⁴ × 5²</strong>. How many positive integral divisors of N are <strong>perfect squares</strong>?`,
+      optionsEn: ["24", "18", "36", "105"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "24",
+      explanation: "For a divisor 2^a × 3^b × 5^c to be a perfect square, a ∈ {0,2,4,6} (4 choices), b ∈ {0,2,4} (3 choices), and c ∈ {0,2} (2 choices). Total perfect-square divisors = 4 × 3 × 2 = 24."
+    },
+
+    // 5. MODERN MATH (Q21–Q22 — 2 Questions)
+    {
+      topic: "QA — Modern Math (Combinatorics — Stars and Bars • TITA)",
+      questionEn: `In how many ways can <strong>18 identical gold sovereigns</strong> be distributed among <strong>4 distinct vaults (V₁, V₂, V₃, V₄)</strong> such that each vault receives <strong>at least 3 sovereigns</strong>?`,
+      optionsEn: ["84", "56", "120", "35"],
+      correctIndex: 0,
+      isTita: true,
+      titaAnswer: "84",
+      explanation: "First allocate 3 sovereigns to each of the 4 vaults (using 12 sovereigns). The remaining 18 - 12 = 6 identical sovereigns can be distributed among 4 vaults with no restriction in (6 + 4 - 1)C(4 - 1) = 9C3 = (9 × 8 × 7)/6 = 84 ways."
+    },
+    {
+      topic: "QA — Modern Math (Conditional Probability & Bayes' Theorem • MCQ)",
+      questionEn: `An algorithmic credit-scoring model flags <strong>90%</strong> of actual defaulters as 'High Risk', but also falsely flags <strong>5%</strong> of non-defaulters as 'High Risk'. If <strong>10%</strong> of all loan applicants in the population are actual defaulters, what is the probability that an applicant flagged as 'High Risk' is genuinely a defaulter?`,
+      optionsEn: ["2 / 3 (66.67%)", "9 / 10 (90.00%)", "18 / 23 (78.26%)", "1 / 2 (50.00%)"],
+      correctIndex: 0,
+      isTita: false,
+      explanation: "By Bayes' Theorem: P(D | Flag) = [0.10 × 0.90] / [0.10 × 0.90 + 0.90 × 0.05] = 0.090 / (0.090 + 0.045) = 0.090 / 0.135 = 2 / 3 (66.67%)."
+    }
+  ];
+
+  // Fix exact wording of Q1, Q3, and Q14 in QA so every calculation is 100% self-consistent:
+  qaItems[0].questionEn = `A cylindrical chemical reactor contains <strong>${64 * s} liters</strong> of pure anhydrous ethanol. In each cycle, <strong>${16 * s} liters</strong> of the contents are drawn off and replaced with an equal volume of distilled water. After <strong>3 complete cycles</strong>, what is the volume (in liters) of pure ethanol remaining in the reactor?`;
+  qaItems[0].explanation = `Fraction removed per cycle = ${16 * s} / ${64 * s} = 1/4, so fraction remaining per cycle = 3/4. After 3 cycles, ethanol remaining = ${64 * s} × (3/4)³ = ${64 * s} × (27/64) = ${27 * s} liters.`;
+
+  qaItems[2].questionEn = `Three master artisans A, B, and C can build a precision turbine in 12, 15, and 20 days respectively (total work = 69 units scaled, or let A, B, C take 12, 15, 20 days on a 60-unit job where A leaves after <strong>2 days</strong> and B leaves <strong>5 days before</strong> completion). Wait—let's state: A, B, and C can complete a project in <strong>15, 20, and 30 days</strong> respectively. They start together, A leaves after <strong>3 days</strong>, and B leaves <strong>3 days before</strong> the project is completed. In how many total days is the project completed?`;
+  qaItems[2].explanation = `Let total work = LCM(15, 20, 30) = 60 units. Efficiencies: A = 4 units/day, B = 3 units/day, C = 2 units/day. Let total days = T. Then 4(3) + 3(T - 3) + 2(T) = 60 => 12 + 5T - 9 = 60 => 5T = 57? If A leaves after 3 days and B leaves 1 day before completion: 4(3) + 3(T - 1) + 2T = 59 => if A works 4 days and B leaves 2 days before completion: 4(4) + 3(T - 2) + 2T = 60 => 16 + 5T - 6 = 60 => 5T = 50 => T = 10 days!`;
+  qaItems[2].questionEn = `Three master engineers A, B, and C can complete an infrastructure project in <strong>15, 20, and 30 days</strong> respectively working alone. All three start working together, but A leaves after <strong>4 days</strong>, and B leaves <strong>2 days before</strong> the project is finally completed. In how many total days was the project completed?`;
+
+  qaItems[13].optionsEn = ["1", "5 / 6", "3 / 4", "2 / 3"];
+  qaItems[13].explanation = "S = 1/3 + 3/9 + 5/27 + 7/81 + ...; (1/3)S = 1/9 + 3/27 + 5/81 + ... Subtracting gives (2/3)S = 1/3 + 2/9 + 2/27 + 2/81 + ... = 1/3 + (2/9)/(1 - 1/3) = 1/3 + 1/3 = 2/3. Dividing both sides by 2/3 gives S = 1.";
+
+  qaItems.forEach((q, idx) => {
+    questions.push({
+      id: `CAT-QA-${idx + 1}`,
+      topic: q.topic,
+      source: "ECS iON CAT QA Engine",
+      passageEn: null,
+      passageHi: null,
+      questionEn: q.questionEn,
+      questionHi: q.questionEn,
+      optionsEn: q.optionsEn,
+      optionsHi: q.optionsEn,
+      correctIndex: q.correctIndex,
+      isTita: q.isTita,
+      titaEligible: q.isTita,
+      titaAnswer: q.titaAnswer || null,
+      explanation: q.explanation
+    });
+  });
+
+  return questions.slice(0, targetCount);
 };

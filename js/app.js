@@ -208,9 +208,10 @@
       }
     }
 
-    // Deterministically rotate correct option position based on indexNumber so correct answers are distributed across A, B, C, D, (E)
+    // Deterministically rotate correct option position based on indexNumber (skip for TITA or positional [1]..[4] options)
+    const isPositional = rawQ.isTita || (optionsEn[0] && optionsEn[0].includes("Option [1]"));
     const modPos = indexNumber % targetOptionsCount;
-    if (modPos !== correctIdx && modPos < optionsEn.length) {
+    if (!isPositional && modPos !== correctIdx && modPos < optionsEn.length) {
       const tmpEn = optionsEn[modPos];
       const tmpHi = optionsHi[modPos];
       optionsEn[modPos] = optionsEn[correctIdx];
@@ -355,7 +356,9 @@
         : [];
 
       let combinedPool = [];
-      if (AppState.apiSourceMode === "live_opentdb" && livePool.length > 0) {
+      if (examConfig.id === "CAT_IIM" && typeof window.ECS_GENERATE_CAT_SECTION === "function") {
+        combinedPool = window.ECS_GENERATE_CAT_SECTION(sec.id, targetCount, livePool);
+      } else if (AppState.apiSourceMode === "live_opentdb" && livePool.length > 0) {
         combinedPool = [...livePool, ...curatedPool, ...parametricPool];
       } else if (AppState.apiSourceMode === "hybrid") {
         combinedPool = [
@@ -374,7 +377,10 @@
       for (let i = 0; i < targetCount; i++) {
         const templateQ = combinedPool[i % combinedPool.length];
         const normalized = normalizeQuestionOptions(templateQ, examConfig.optionsCount, globalQNumber);
-        const isCatTita = examConfig.id === "CAT_IIM" && templateQ.titaEligible && i % 5 === 4;
+        const isCatTita =
+          examConfig.id === "CAT_IIM"
+            ? Boolean(templateQ.isTita)
+            : Boolean(examConfig.id === "CAT_IIM" && templateQ.titaEligible && i % 5 === 4);
 
         // Calculate exact positiveMarks & 1/4th negativeMarks if variableDistribution is specified
         let qPosMarks = Number(sec.positiveMarks ?? examConfig.positiveMarks ?? 1.0);
@@ -1538,7 +1544,11 @@
               })
               .join("")}
             ${
-              exam.sectionalTiming && s.activeSectionIndex < s.sections.length - 1
+              exam.strictSectionalLock
+                ? `<span class="ml-1 px-2.5 py-1 rounded bg-rose-50 text-rose-900 border border-rose-300 text-[11px] font-bold shrink-0" title="Fixed CAT Order: VARC (40m) -> DILR (40m) -> QA (40m)">
+                    🔒 Fixed Order: VARC → DILR → QA (40m each)
+                  </span>`
+                : exam.sectionalTiming && s.activeSectionIndex < s.sections.length - 1
                 ? `<button type="button" onclick="window.ECSApp.openModal('section_submit')" class="ml-1 px-2.5 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[11px] font-bold shrink-0" title="Finish current timed section early and unlock next section">
                     ⏭️ Submit Section
                   </button>`
@@ -3122,6 +3132,14 @@
       if (!AppState.session) return;
       const s = AppState.session;
       if (secIdx === s.activeSectionIndex) return;
+
+      if (s.examConfig.strictSectionalLock) {
+        showToast(
+          "In the CAT examination, sectional order is strictly fixed (VARC → DILR → QA). You cannot switch to another section before its 40-minute timer is up or go back to a previous section.",
+          "warning"
+        );
+        return;
+      }
 
       if (s.examConfig.sectionalTiming) {
         showToast(
